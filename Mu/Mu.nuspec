@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>com.realazy.Mu</id>
+    <title>Mu</title>
+    <version>0.0.1</version>
+    <description>
+      Apply The Elm Architecture pattern on Xamarin stack, with another simple, unobtrusive way.
+    </description>
+    <summary>
+      Apply The Elm Architecture pattern on Xamarin stack, with another simple, unobtrusive way.
+    </summary>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <authors>Realazy Xian-an CHEN</authors>
+    <copyright>Copyright © realazy 2018</copyright>
+    <licenseUrl>https://raw.githubusercontent.com/cxa/Mu/master/LICENSE</licenseUrl>
+    <projectUrl>https://github.com/cxa/Mu</projectUrl>
+    <tags>TEA, Elm, Elmish, architecture</tags>
+  </metadata>
+  <files>
+    <file src="Mu.fsproj"  />
+    <file src="Mu.fs" />
+  </files>
+</package>
