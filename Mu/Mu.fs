@@ -1,56 +1,50 @@
 namespace Mu
 
-module Binder =
-  open Microsoft.FSharp.Quotations
-  open Microsoft.FSharp.Quotations.Patterns
-
-  type I =
-    abstract Bind: Expr<'a> -> ('a -> unit) -> unit
-
-  type internal T () =
-    let curSyncContext = System.Threading.SynchronizationContext.Current
-    let event = Event<string * obj> ()
-
-    member __.OnChange = event.Publish
-
-    member __.Emit field value =
-      // Ensure event triggering in UI thread/context
-      curSyncContext.Post ((fun _ -> event.Trigger (field, value)), null)
-
-    interface I with
-      member x.Bind (getter: Expr<'a>) (updateView: 'a -> unit) =
-        match getter with
-        | PropertyGet (Some (Value(target, _)), propInfo, [])  ->
-          updateView (propInfo.GetValue target :?> 'a)
-          x.OnChange
-          |> Observable.filter (fun (name, _) -> name = propInfo.Name)
-          |> Observable.add (fun (_, value) -> updateView (value :?> 'a))
-        | _ ->
-          failwith "Expression must be a property getter"
-
-type EmitEvent<'event> =
-  'event -> unit
-
-type SideEffects<'model, 'event> =
-  'model -> EmitEvent<'event> -> unit
+open Microsoft.FSharp.Quotations
+open Microsoft.FSharp.Quotations.Patterns
+open Microsoft.FSharp.Reflection
 
 type Update<'model, 'event> =
   | Update of 'model
   | UpdateWithSideEffects of 'model * SideEffects<'model, 'event>
   | SideEffects of SideEffects<'model, 'event>
+and SideEffects<'model, 'event> =
+  'model -> EmitEvent<'event> -> unit
+and EmitEvent<'event> =
+  'event -> unit
 
 type IView<'model, 'event> =
-  abstract BindModel: 'model -> Binder.I -> unit
+  abstract BindModel: 'model -> IBinder -> unit
   abstract BindEvent: EmitEvent<'event> -> unit
+and IBinder =
+  abstract Bind: Expr<'value> -> ('value -> unit) -> unit
 
-type T<'model, 'event> =
-  { init: unit -> 'model
-  ; update: 'model -> 'event -> Update<'model, 'event>
-  ; view: IView<'model, 'event>
-  }
+type private Binder () =
+  let curSyncContext = System.Threading.SynchronizationContext.Current
+  let event = Event<string * obj> ()
+
+  member __.OnChange = event.Publish
+
+  member __.Emit field value =
+    // Ensure event triggering in UI thread/context
+    curSyncContext.Post ((fun _ -> event.Trigger (field, value)), null)
+
+  interface IBinder with
+    member x.Bind (getter: Expr<'a>) (updateView: 'a -> unit) =
+      match getter with
+      | PropertyGet (Some (Value(target, _)), propInfo, [])  ->
+        updateView (propInfo.GetValue target :?> 'a)
+        x.OnChange
+        |> Observable.filter (fun (name, _) -> name = propInfo.Name)
+        |> Observable.add (fun (_, value) -> updateView (value :?> 'a))
+      | _ ->
+        failwith "Expression must be a record field"
 
 module Mu =
-  open Microsoft.FSharp.Reflection
+  type T<'model, 'event> =
+    { init: unit -> 'model
+      update: 'model -> 'event -> Update<'model, 'event>
+      view: IView<'model, 'event> }
 
   let private diff m1 m2 cb =
     let fields = FSharpType.GetRecordFields (m1.GetType ())
@@ -70,7 +64,7 @@ module Mu =
     let model = init () |> ref
     let event = Event<'event> ()
     let emit = event.Trigger
-    let binder = Binder.T ()
+    let binder = Binder ()
     event.Publish.Add (fun e ->
       match update !model e with
       | Update newModel ->

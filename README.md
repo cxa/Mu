@@ -55,16 +55,14 @@ Model should be a DTO(Data Transfer Object) only, immutable record is the best w
 ### Update
 
 ```fsharp
-type EmitEvent<'event> =
-  'event -> unit
-
-type SideEffects<'model, 'event> =
-  'model -> EmitEvent<'event> -> unit
-
 type Update<'model, 'event> =
   | Update of 'model
   | UpdateWithSideEffects of 'model * SideEffects<'model, 'event>
   | SideEffects of SideEffects<'model, 'event>
+and SideEffects<'model, 'event> =
+  'model -> EmitEvent<'event> -> unit
+and EmitEvent<'event> =
+  'event -> unit
 ```
 
 Update is about changing model through event: `'model -> 'event -> Update<'model, 'event>`.
@@ -75,8 +73,10 @@ Not all updates are just model changes, side effects without or with model chang
 
 ```fsharp
 type IView<'model, 'event> =
-  abstract BindModel: 'model -> Binder.I -> unit
+  abstract BindModel: 'model -> IBinder -> unit
   abstract BindEvent: EmitEvent<'event> -> unit
+and IBinder =
+  abstract Bind: Expr<'value> -> ('value -> unit) -> unit
 ```
 
 view is only an interface in **Mu**, this is the most unobtrusive way to introduce 3rd lib into your project. `BindModel` provides model and binder to sync model states to view elements, and `BindEvent` provides an event emitter to make user input possible.
@@ -88,9 +88,8 @@ A **Mu** component is simply a record contained model initialization, model upda
 ```fsharp
 type T<'model, 'event> =
   { init: unit -> 'model
-  ; update: 'model -> 'event -> Update<'model, 'event>
-  ; view: IView<'model, 'event>
-  }
+    update: 'model -> 'event -> Update<'model, 'event>
+    view: IView<'model, 'event> }
 ```
 
 Run component on view when it's ready with:
@@ -100,7 +99,6 @@ Mu.run' component
 // or
 Mu.run init update view
 ```
-
 
 ## Examples
 
@@ -119,4 +117,4 @@ MIT
 
 - Blog: [realazy.com](https://realazy.com) (Chinese)
 - Github: [@cxa](https://github.com/cxa)
-- Twitter: [@_cxa](https://twitter.com/_cxa) (Chinese mainly)
+- Twitter: [@\_cxa](https://twitter.com/_cxa) (Chinese mainly)
