@@ -47,20 +47,14 @@ module Mu =
       view: IView<'model, 'event> }
 
   let private diff m1 m2 cb =
-    let fields = FSharpType.GetRecordFields (m1.GetType ())
-    fields
+    FSharpType.GetRecordFields (m1.GetType ())
     |> Seq.iter (fun f ->
-      let v1 = f.GetValue m1
-      let v2 = f.GetValue m2
-      if v1 <> v2 then
-        cb f.Name v2
-   )
+      let v1, v2 = f.GetValue m1, f.GetValue m2
+      if v1 <> v2 then cb f.Name v2
+    )
 
   let run' (t:T<'model, 'event>) =
-    let { T.init = init
-          update = update
-          view = view
-        } = t
+    let { T.init = init; update = update; view = view } = t
     let model = init () |> ref
     let event = Event<'event> ()
     let emit = event.Trigger
