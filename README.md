@@ -2,6 +2,8 @@
 
 Apply The Elm Architecture pattern on Xamarin stack, with another simple, unobtrusive way.
 
+[![Build Status](https://travis-ci.org/cxa/Mu.svg?branch=master)](https://travis-ci.org/cxa/Mu)
+
 ## The Elm Architecture (TEA)
 
 [TEA](https://guide.elm-lang.org/architecture/) is all about Model, Update, and View, in **Mu**, it's specific to:
@@ -79,7 +81,7 @@ and IBinder =
   abstract Bind: Expr<'value> -> ('value -> unit) -> unit
 ```
 
-view is only an interface in **Mu**, this is the most unobtrusive way to introduce 3rd lib into your project. `BindModel` provides model and binder to sync model states to view elements, and `BindEvent` provides an event emitter to make user input possible.
+View is only an interface in **Mu**, this is the most unobtrusive way to introduce 3rd lib into your project. `BindModel` provides model and binder to sync model states to view elements, and `BindEvent` provides an event emitter to make user input possible.
 
 ### Run
 

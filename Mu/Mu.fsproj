@@ -1,5 +1,5 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <PackageId>com.realazy.Mu</PackageId>
@@ -14,9 +14,7 @@
     <PackageProjectUrl>https://github.com/cxa/Mu</PackageProjectUrl>
     <PackageTags>TEA, Elm, Elmish, architecture</PackageTags>
   </PropertyGroup>
-
   <ItemGroup>
     <Compile Include="Mu.fs" />
   </ItemGroup>
-
 </Project>
