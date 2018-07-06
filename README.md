@@ -44,7 +44,7 @@ type ViewController (handle:IntPtr) =
       ...
 
     member x.BindAction send =
-      x.resetButton.TouchUpInside.Add (fun _ -> emit Reset)
+      x.resetButton.TouchUpInside.Add (fun _ -> send Reset)
       ...
 ```
 
