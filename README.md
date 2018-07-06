@@ -18,11 +18,13 @@ This is a simple pattern for architecting GUI components.
 // Model
 type Model = { ... }
 
-// Update
-type Event = Reset | ...
 
-let update model event =
-  match event with
+// Actions, all update through action to perform
+type Action = Reset | ...
+
+// Update
+let update model action =
+  match action with
   | Reset -> Update { model with ... }
   ...
 
@@ -36,19 +38,19 @@ type ViewController (handle:IntPtr) =
     // Glue model update view
     Mu.run initModel update x
 
-  interface Mu.IView<Model, Event> with
+  interface Mu.IView<Model, Action> with
     member x.BindModel model binder =
       binder.Bind <@ model.Field @> (fun fieldValue -> x.someLabel.Text <- fieldValue)
       ...
 
-    member x.BindEvent emit =
+    member x.BindAction send =
       x.resetButton.TouchUpInside.Add (fun _ -> emit Reset)
       ...
 ```
 
 That is really the essence of The Elm Architecture!
 
-With **Mu**, Model and Update are separated from view, this means that they can shared across platforms, implementing `Mu.IView<'Model, 'Event>` interfaces is the only required step to support specific platform.
+With **Mu**, Model and Update are separated from view, this means that they can shared across platforms, implementing `Mu.IView<'model, 'acition>` interfaces is the only required step to support specific platform.
 
 ### Model
 
@@ -57,41 +59,42 @@ Model should be a DTO(Data Transfer Object) only, immutable record is the best w
 ### Update
 
 ```fsharp
-type Update<'model, 'event> =
+type Update<'model, 'action> =
+  | NoUpdate
   | Update of 'model
-  | UpdateWithSideEffects of 'model * SideEffects<'model, 'event>
-  | SideEffects of SideEffects<'model, 'event>
-and SideEffects<'model, 'event> =
-  'model -> EmitEvent<'event> -> unit
-and EmitEvent<'event> =
-  'event -> unit
+  | UpdateWithSideEffects of 'model * SideEffects<'model, 'action>
+  | SideEffects of SideEffects<'model, 'action>
+and SideEffects<'model, 'action> =
+  'model -> Action<'action> -> unit
+and Action<'action> =
+  'action -> unit
 ```
 
-Update is about changing model through event: `'model -> 'event -> Update<'model, 'event>`.
+Update is about changing model through action: `'model -> 'action -> Update<'model, 'action>`.
 
-Not all updates are just model changes, side effects without or with model changing are common. **Mu** provides current model state and the event emitter when performing side effects.
+Not all updates are just model changes, side effects without or with model changing are common. **Mu** provides current model state and the action sender when performing side effects.
 
 ### View
 
 ```fsharp
-type IView<'model, 'event> =
+type IView<'model, 'action> =
   abstract BindModel: 'model -> IBinder -> unit
-  abstract BindEvent: EmitEvent<'event> -> unit
+  abstract BindAction: Action<'action> -> unit
 and IBinder =
   abstract Bind: Expr<'value> -> ('value -> unit) -> unit
 ```
 
-View is only an interface in **Mu**, this is the most unobtrusive way to introduce 3rd lib into your project. `BindModel` provides model and binder to sync model states to view elements, and `BindEvent` provides an event emitter to make user input possible.
+View is only an interface in **Mu**, this is the most unobtrusive way to introduce 3rd lib into your project. `BindModel` provides model and binder to sync model states to view elements, and `BindAction` provides an action sender to make user input possible.
 
 ### Run
 
 A **Mu** component is simply a record contained model initialization, model updater and view:
 
 ```fsharp
-type T<'model, 'event> =
+type T<'model, 'action> =
   { init: unit -> 'model
-    update: 'model -> 'event -> Update<'model, 'event>
-    view: IView<'model, 'event> }
+    update: 'model -> 'action -> Update<'model, 'action>
+    view: IView<'model, 'action> }
 ```
 
 Run component on view when it's ready with:

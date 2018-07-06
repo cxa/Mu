@@ -4,18 +4,19 @@ open Microsoft.FSharp.Quotations
 open Microsoft.FSharp.Quotations.Patterns
 open Microsoft.FSharp.Reflection
 
-type Update<'model, 'event> =
+type Update<'model, 'action> =
+  | NoUpdate
   | Update of 'model
-  | UpdateWithSideEffects of 'model * SideEffects<'model, 'event>
-  | SideEffects of SideEffects<'model, 'event>
-and SideEffects<'model, 'event> =
-  'model -> EmitEvent<'event> -> unit
-and EmitEvent<'event> =
-  'event -> unit
+  | UpdateWithSideEffects of 'model * SideEffects<'model, 'action>
+  | SideEffects of SideEffects<'model, 'action>
+and SideEffects<'model, 'action> =
+  'model -> Action<'action> -> unit
+and Action<'action> =
+  'action -> unit
 
-type IView<'model, 'event> =
+type IView<'model, 'action> =
   abstract BindModel: 'model -> IBinder -> unit
-  abstract BindEvent: EmitEvent<'event> -> unit
+  abstract BindAction: Action<'action> -> unit
 and IBinder =
   abstract Bind: Expr<'value> -> ('value -> unit) -> unit
 
@@ -25,7 +26,7 @@ type private Binder () =
 
   member __.OnChange = event.Publish
 
-  member __.Emit field value =
+  member __.NotifyChange field value =
     // Ensure event triggering in UI thread/context
     curSyncContext.Post ((fun _ -> event.Trigger (field, value)), null)
 
@@ -41,10 +42,10 @@ type private Binder () =
         failwith "Expression must be a record field"
 
 module Mu =
-  type T<'model, 'event> =
+  type T<'model, 'action> =
     { init: unit -> 'model
-      update: 'model -> 'event -> Update<'model, 'event>
-      view: IView<'model, 'event> }
+      update: 'model -> 'action -> Update<'model, 'action>
+      view: IView<'model, 'action> }
 
   let private diff m1 m2 cb =
     FSharpType.GetRecordFields (m1.GetType ())
@@ -53,26 +54,28 @@ module Mu =
       if v1 <> v2 then cb f.Name v2
     )
 
-  let run' (t:T<'model, 'event>) =
+  let run' (t:T<'model, 'action>) =
     let { T.init = init; update = update; view = view } = t
     let model = init () |> ref
-    let event = Event<'event> ()
-    let emit = event.Trigger
+    let actionHolder = Event<'action> ()
+    let action = actionHolder.Trigger
     let binder = Binder ()
-    event.Publish.Add (fun e ->
+    actionHolder.Publish.Add (fun e ->
       match update !model e with
+      | NoUpdate ->
+        () // Do nothing
       | Update newModel ->
-        diff !model newModel binder.Emit
+        diff !model newModel binder.NotifyChange
         model := newModel
       | UpdateWithSideEffects (newModel, effects) ->
-        diff !model newModel binder.Emit
+        diff !model newModel binder.NotifyChange
         model := newModel
-        effects !model emit
+        effects !model action
       | SideEffects effects ->
-        effects !model emit
+        effects !model action
     )
     view.BindModel !model binder
-    view.BindEvent emit
+    view.BindAction action
 
   let run init update view =
     run' { init = init; update = update; view = view }

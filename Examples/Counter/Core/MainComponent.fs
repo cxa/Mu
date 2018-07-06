@@ -7,7 +7,7 @@ module MainComponent =
     { Number: int
       Message: string }
 
-  module Event =
+  module Action =
     type T =
       | Incr
       | Decr
@@ -16,7 +16,7 @@ module MainComponent =
       | RandomErr of string
 
   module private Effects =
-    let requestRandom model emit =
+    let requestRandom model send =
       let wc = new System.Net.WebClient ()
       async {
         let choice =
@@ -25,25 +25,25 @@ module MainComponent =
           |> Async.Catch
           |> Async.RunSynchronously
         match choice with
-        | Choice1Of2 str -> emit <| Event.RandomSucc str
-        | Choice2Of2 err -> emit <| Event.RandomErr (err.ToString())
+        | Choice1Of2 str -> send <| Action.RandomSucc str
+        | Choice2Of2 err -> send <| Action.RandomErr (err.ToString())
       } |> Async.Start
 
   let init () =
     { Number = System.Random().Next 100
       Message = "" }
 
-  let update model event =
-    match event with
-    | Event.Incr -> Update { model with Number = model.Number + 1 }
-    | Event.Decr -> Update { model with Number = model.Number - 1 }
-    | Event.RequestRandom ->
-      UpdateWithSideEffects 
+  let update model action =
+    match action with
+    | Action.Incr -> Update { model with Number = model.Number + 1 }
+    | Action.Decr -> Update { model with Number = model.Number - 1 }
+    | Action.RequestRandom ->
+      UpdateWithSideEffects
         ({ model with Message = "Randomizing..." }, Effects.requestRandom)
-    | Event.RandomSucc str ->
+    | Action.RandomSucc str ->
       let number = str.Split (' ') |> Array.head |> int // unsafe here
       Update { Number = number; Message = str }
-    | Event.RandomErr err -> Update { model with Message = err }
+    | Action.RandomErr err -> Update { model with Message = err }
 
   let runInView view =
     Mu.run init update view

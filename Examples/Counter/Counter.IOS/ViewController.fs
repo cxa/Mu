@@ -23,16 +23,16 @@ type ViewController (handle:IntPtr) =
     base.ViewDidLoad ()
     MainComponent.runInView x
 
-  interface IView<Model, Event.T> with
+  interface IView<Model, Action.T> with
     member x.BindModel model binder =
-      binder.Bind <@ model.Number @> (fun n -> 
+      binder.Bind <@ model.Number @> (fun n ->
         x.countLabel.Text <- sprintf "%d" n
       )
       binder.Bind <@ model.Message @> (fun m ->
         x.descLabel.Text <- m
       )
 
-    member x.BindEvent emit =
-      x.incrButton.TouchUpInside.Add (fun _ -> emit Event.Incr)
-      x.decrButton.TouchUpInside.Add (fun _ -> emit Event.Decr)
-      x.randButton.TouchUpInside.Add (fun _ -> emit Event.RequestRandom)
+    member x.BindAction send =
+      x.incrButton.TouchUpInside.Add (fun _ -> send Action.Incr)
+      x.decrButton.TouchUpInside.Add (fun _ -> send Action.Decr)
+      x.randButton.TouchUpInside.Add (fun _ -> send Action.RequestRandom)
