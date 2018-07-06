@@ -6,7 +6,7 @@ open Mu
 
 type Model = { Count: int }
 
-type Event =
+type Action =
   | Incr of int
   | Decr of int
 
@@ -17,14 +17,14 @@ let update model event =
 
 type View () =
   member val Count = 0 with get, set
-  member val Emit: EmitEvent<Event> = (fun _ -> ()) with get, set
+  member val Send: Action<Action> = (fun _ -> ()) with get, set
 
-  interface IView<Model, Event> with
+  interface IView<Model, Action> with
     member x.BindModel model binder =
       binder.Bind <@ model.Count @> (fun c -> x.Count <- c)
 
-    member x.BindEvent emit =
-      x.Emit <- emit
+    member x.BindAction send =
+      x.Send <- send
 
 [<Fact>]
 let ``Test View Update`` () =
@@ -33,9 +33,9 @@ let ``Test View Update`` () =
   let view = View ()
   Mu.run init update view
   Assert.Equal (view.Count, initCount)
-  view.Emit <| Decr 4
+  view.Send <| Decr 4
   Async.Sleep 1000 |> Async.RunSynchronously
   Assert.Equal (view.Count, initCount - 4)
-  view.Emit <| Incr 10
+  view.Send <| Incr 10
   Async.Sleep 1000 |> Async.RunSynchronously
   Assert.Equal (view.Count, initCount - 4 + 10)
