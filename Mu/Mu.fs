@@ -15,12 +15,13 @@ and Action<'action> =
   'action -> unit
 
 type IView<'model, 'action> =
-  abstract BindModel: 'model -> IBinder -> unit
+  abstract BindModel: 'model -> IBinder<'action> -> unit
   abstract BindAction: Action<'action> -> unit
-and IBinder =
+and IBinder<'action> =
   abstract Bind: Expr<'value> -> ('value -> unit) -> unit
+  abstract Send: 'action -> unit
 
-type private Binder () =
+type private Binder<'action> (send: Action<'action>) =
   let curSyncContext = System.Threading.SynchronizationContext.Current
   let event = Event<string * obj> ()
 
@@ -30,7 +31,7 @@ type private Binder () =
     // Ensure event triggering in UI thread/context
     curSyncContext.Post ((fun _ -> event.Trigger (field, value)), null)
 
-  interface IBinder with
+  interface IBinder<'action> with
     member x.Bind (getter: Expr<'a>) (updateView: 'a -> unit) =
       match getter with
       | PropertyGet (Some (Value(target, _)), propInfo, [])  ->
@@ -40,6 +41,8 @@ type private Binder () =
         |> Observable.add (fun (_, value) -> updateView (value :?> 'a))
       | _ ->
         failwith "Expression must be a record field"
+
+    member __.Send action = send action
 
 module Mu =
   type T<'model, 'action> =
@@ -59,7 +62,7 @@ module Mu =
     let model = init () |> ref
     let actionHolder = Event<'action> ()
     let action = actionHolder.Trigger
-    let binder = Binder ()
+    let binder = Binder (action)
     actionHolder.Publish.Add (fun e ->
       match update !model e with
       | NoUpdate ->
