@@ -26,13 +26,13 @@ type ViewController (handle:IntPtr) =
   interface IView<Model, Action.T> with
     member x.BindModel model binder =
       binder.Bind <@ model.Number @> (fun n ->
-        x.countLabel.StringValue <- sprintf "%d" n
-      )
+        x.countLabel.StringValue <- sprintf "%d" n)
+      binder.Bind <@ model.ButtonTitle @> (fun t ->
+        x.randomButton.Title <- t)
       binder.Bind <@ model.Message @> (fun m ->
-        x.descLabel.StringValue <- m
-      )
+        x.descLabel.StringValue <- m)
 
     member x.BindAction send =
       x.incrButton.Activated.Add (fun _ -> send Action.Incr)
       x.decrButton.Activated.Add (fun _ -> send Action.Decr)
-      x.randomButton.Activated.Add (fun _ -> send Action.RequestRandom)
+      x.randomButton.Activated.Add (fun _ -> send Action.HandleRandomizing)

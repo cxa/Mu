@@ -18,7 +18,6 @@ This is a simple pattern for architecting GUI components.
 // Model
 type Model = { ... }
 
-
 // Actions, all update through action to perform
 type Action = Reset | ...
 
@@ -62,12 +61,13 @@ Model should be a DTO(Data Transfer Object) only, immutable record is the best w
 type Update<'model, 'action> =
   | NoUpdate
   | Update of 'model
-  | UpdateWithSideEffects of 'model * SideEffects<'model, 'action>
-  | SideEffects of SideEffects<'model, 'action>
-and SideEffects<'model, 'action> =
-  'model -> Action<'action> -> unit
-and Action<'action> =
-  'action -> unit
+  | UpdateWithEffects of 'model * Effects<'model, 'action>
+  | Effects of Effects<'model, 'action>
+and Effects<'model, 'action> =
+  | Eff of ('model -> unit)
+  | Cmd of ('model -> 'action)
+  | AsyncCmd of ('model -> Async<'action>)
+  | AsyncCmd' of ('model -> Async<'action> * CancellationTokenSource)
 ```
 
 Update is about changing model through action: `'model -> 'action -> Update<'model, 'action>`.
@@ -78,10 +78,13 @@ Not all updates are just model changes, side effects without or with model chang
 
 ```fsharp
 type IView<'model, 'action> =
-  abstract BindModel: 'model -> IBinder -> unit
+  abstract BindModel: 'model -> IBinder<'action> -> unit
   abstract BindAction: Action<'action> -> unit
-and IBinder =
+and IBinder<'action> =
   abstract Bind: Expr<'value> -> ('value -> unit) -> unit
+  abstract Send: Action<'action>
+and Action<'action> =
+  'action -> unit
 ```
 
 View is only an interface in **Mu**, this is the most unobtrusive way to introduce 3rd lib into your project. `BindModel` provides model and binder to sync model states to view elements, and `BindAction` provides an action sender to make user input possible.
@@ -107,12 +110,12 @@ Mu.run init update view
 
 ## Examples
 
-👉 [Examples](Examples)
+👉 [Examples](Examples) contain some advance usages of async effects.
 
 ## Usage
 
 - Install from NuGet: [https://www.nuget.org/packages/com.realazy.Mu](https://www.nuget.org/packages/com.realazy.Mu)
-- Add this project to your solution, or directly add `Mu.fs`. (Yes `Mu` is a single file project, less than 100 LOC! 🤯)
+- Add this project to your solution, or directly add `Mu.fs`. (Yes `Mu` is a single file project, less than 100 SLOC! 🤯)
 
 ## LICENSE
 

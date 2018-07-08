@@ -3,23 +3,27 @@ namespace Mu
 open Microsoft.FSharp.Quotations
 open Microsoft.FSharp.Quotations.Patterns
 open Microsoft.FSharp.Reflection
+open System.Threading
 
 type Update<'model, 'action> =
   | NoUpdate
   | Update of 'model
-  | UpdateWithSideEffects of 'model * SideEffects<'model, 'action>
-  | SideEffects of SideEffects<'model, 'action>
-and SideEffects<'model, 'action> =
-  'model -> Action<'action> -> unit
-and Action<'action> =
-  'action -> unit
+  | UpdateWithEffects of 'model * Effects<'model, 'action>
+  | Effects of Effects<'model, 'action>
+and Effects<'model, 'action> =
+  | Eff of ('model -> unit)
+  | Cmd of ('model -> 'action)
+  | AsyncCmd of ('model -> Async<'action>)
+  | AsyncCmd' of ('model -> Async<'action> * CancellationTokenSource)
 
 type IView<'model, 'action> =
   abstract BindModel: 'model -> IBinder<'action> -> unit
   abstract BindAction: Action<'action> -> unit
 and IBinder<'action> =
   abstract Bind: Expr<'value> -> ('value -> unit) -> unit
-  abstract Send: 'action -> unit
+  abstract Send: Action<'action>
+and Action<'action> =
+  'action -> unit
 
 type private Binder<'action> (send: Action<'action>) =
   let curSyncContext = System.Threading.SynchronizationContext.Current
@@ -42,7 +46,7 @@ type private Binder<'action> (send: Action<'action>) =
       | _ ->
         failwith "Expression must be a record field"
 
-    member __.Send action = send action
+    member __.Send = send
 
 module Mu =
   type T<'model, 'action> =
@@ -57,28 +61,43 @@ module Mu =
       if v1 <> v2 then cb f.Name v2
     )
 
+  let private startAsync actionAsync (cancelSrc:CancellationTokenSource) sendAction =
+    let computation =
+      async { let! action = actionAsync in sendAction action }
+    if not (isNull cancelSrc) then
+      Async.StartImmediate (computation, cancelSrc.Token)
+
+  let private handleEffects effects currentModel sendAction =
+    match effects with
+    | Eff fn -> fn currentModel
+    | Cmd fn -> sendAction (fn currentModel)
+    | AsyncCmd fn ->
+      let actionAsync = fn currentModel
+      startAsync actionAsync null sendAction
+    | AsyncCmd' fn ->
+      let actionAsync, cancelSource = fn currentModel
+      startAsync actionAsync cancelSource sendAction
+
   let run' (t:T<'model, 'action>) =
     let { T.init = init; update = update; view = view } = t
     let model = init () |> ref
     let actionHolder = Event<'action> ()
-    let action = actionHolder.Trigger
-    let binder = Binder (action)
+    let sendAction = actionHolder.Trigger
+    let binder = Binder (sendAction)
     actionHolder.Publish.Add (fun e ->
       match update !model e with
-      | NoUpdate ->
-        () // Do nothing
+      | NoUpdate -> ()
       | Update newModel ->
         diff !model newModel binder.NotifyChange
         model := newModel
-      | UpdateWithSideEffects (newModel, effects) ->
+      | UpdateWithEffects (newModel, effects) ->
         diff !model newModel binder.NotifyChange
         model := newModel
-        effects !model action
-      | SideEffects effects ->
-        effects !model action
-    )
+        handleEffects effects !model sendAction
+      | Update.Effects effects ->
+        handleEffects effects !model sendAction)
     view.BindModel !model binder
-    view.BindAction action
+    view.BindAction sendAction
 
   let run init update view =
     run' { init = init; update = update; view = view }

@@ -27,12 +27,13 @@ type MainActivity () =
     member x.BindModel model binder =
       let countLabel = x.FindViewById<TextView> Resources.Id.countLabel
       binder.Bind <@ model.Number @> (fun n ->
-        countLabel.Text <- sprintf "%d" n
-      )
+        countLabel.Text <- sprintf "%d" n)
+      let randomButton = x.FindViewById<Button> Resources.Id.randomButton
+      binder.Bind <@ model.ButtonTitle @> (fun t ->
+        randomButton.Text <- t)
       let descLabel = x.FindViewById<TextView> Resources.Id.descLabel
       binder.Bind <@ model.Message @> (fun m ->
-        descLabel.Text <- m
-      )
+        descLabel.Text <- m)
 
     member x.BindAction send =
       let incrButton = x.FindViewById<Button> Resources.Id.incrButton
@@ -40,4 +41,4 @@ type MainActivity () =
       let decrButton = x.FindViewById<Button> Resources.Id.decrButton
       decrButton.Click.Add (fun _ -> send Action.Decr)
       let randomButton = x.FindViewById<Button> Resources.Id.randomButton
-      randomButton.Click.Add (fun _ -> send Action.RequestRandom)
+      randomButton.Click.Add (fun _ -> send Action.HandleRandomizing)
