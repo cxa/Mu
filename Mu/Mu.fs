@@ -33,7 +33,9 @@ type private Binder<'action> (send: Action<'action>) =
 
   member __.NotifyChange field value =
     // Ensure event triggering in UI thread/context
-    curSyncContext.Post ((fun _ -> event.Trigger (field, value)), null)
+    // FIXME: SynchronizationContext.Current in WPF entry point is null
+    if isNull curSyncContext then event.Trigger (field, value)
+    else curSyncContext.Post ((fun _ -> event.Trigger (field, value)), null)
 
   interface IBinder<'action> with
     member x.Bind (getter: Expr<'a>) (updateView: 'a -> unit) =
