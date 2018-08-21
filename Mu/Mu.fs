@@ -53,15 +53,13 @@ type private Binder<'action> (send: Action<'action>) =
 module Mu =
   type T<'model, 'action> =
     { init: unit -> 'model
-      update: 'model -> 'action -> Update<'model, 'action>
-      view: IView<'model, 'action> }
+      update: 'model -> 'action -> Update<'model, 'action> }
 
   let private diff m1 m2 cb =
     FSharpType.GetRecordFields (m1.GetType ())
     |> Seq.iter (fun f ->
       let v1, v2 = f.GetValue m1, f.GetValue m2
-      if v1 <> v2 then cb f.Name v2
-    )
+      if v1 <> v2 then cb f.Name v2)
 
   let private startAsync actionAsync (cancelSrc:CancellationTokenSource) sendAction =
     let computation =
@@ -80,8 +78,8 @@ module Mu =
       let actionAsync, cancelSource = fn currentModel
       startAsync actionAsync cancelSource sendAction
 
-  let run' (t:T<'model, 'action>) =
-    let { T.init = init; update = update; view = view } = t
+  let run''<'model, 'action> (t:T<'model, 'action>) (views: IView<'model, 'action> list) =
+    let { T.init = init; update = update } = t
     let model = init () |> ref
     let actionHolder = Event<'action> ()
     let sendAction = actionHolder.Trigger
@@ -98,8 +96,13 @@ module Mu =
         handleEffects effects !model sendAction
       | Update.Effects effects ->
         handleEffects effects !model sendAction)
-    view.BindModel !model binder
-    view.BindAction sendAction
+    views
+    |> List.iter (fun view ->
+      view.BindModel !model binder
+      view.BindAction sendAction)
+
+  let run' init update views =
+    run'' { init = init; update = update } views
 
   let run init update view =
-    run' { init = init; update = update; view = view }
+    run'' { init = init; update = update } [ view ]
