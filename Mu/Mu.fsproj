@@ -4,7 +4,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <PackageId>com.realazy.Mu</PackageId>
     <Title>Mu — The Elm Architecture on Xamarin</Title>
-    <Version>0.0.4</Version>
+    <Version>0.0.5</Version>
     <description>
       Apply The Elm Architecture pattern on Xamarin stack, with another simple, unobtrusive way.
     </description>
@@ -16,5 +16,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Mu.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Quotations.Evaluator" Version="2.1.0" />
   </ItemGroup>
 </Project>

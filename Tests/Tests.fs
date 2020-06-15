@@ -20,8 +20,8 @@ type View () =
   member val Send: Action<Action> = (fun _ -> ()) with get, set
 
   interface IView<Model, Action> with
-    member x.BindModel model binder =
-      binder.Bind <@ model.Count @> (fun c -> x.Count <- c)
+    member x.BindModel model =
+      <@ x.Count <- model.Count @>
 
     member x.BindAction send =
       x.Send <- send
@@ -34,8 +34,8 @@ let ``Test View Update`` () =
   Mu.run init update view
   Assert.Equal (view.Count, initCount)
   view.Send <| Decr 4
-  Async.Sleep 1000 |> Async.RunSynchronously
+  Async.Sleep 1 |> Async.RunSynchronously
   Assert.Equal (view.Count, initCount - 4)
   view.Send <| Incr 10
-  Async.Sleep 1000 |> Async.RunSynchronously
+  Async.Sleep 1 |> Async.RunSynchronously
   Assert.Equal (view.Count, initCount - 4 + 10)
