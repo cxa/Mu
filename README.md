@@ -38,10 +38,14 @@ type ViewController (handle:IntPtr) =
     Mu.run initModel update x
 
   interface Mu.IView<Model, Action> with
-    member x.BindModel model binder =
-      binder.Bind <@ model.Field @> (fun fieldValue -> x.someLabel.Text <- fieldValue)
-      ...
+    // Setup view and model relationship
+    member x.BindModel model =
+      <@ 
+        x.someLabel.Text <- model.Field 
+        ...
+      @>
 
+    // Setup communicating between view and model, via aciton
     member x.BindAction send =
       x.resetButton.TouchUpInside.Add (fun _ -> send Reset)
       ...
@@ -78,16 +82,11 @@ Not all updates are just model changes, side effects without or with model chang
 
 ```fsharp
 type IView<'model, 'action> =
-  abstract BindModel: 'model -> IBinder<'action> -> unit
+  abstract BindModel: 'model -> Expr<unit>
   abstract BindAction: Action<'action> -> unit
-and IBinder<'action> =
-  abstract Bind: Expr<'value> -> ('value -> unit) -> unit
-  abstract Send: Action<'action>
-and Action<'action> =
-  'action -> unit
 ```
 
-View is only an interface in **Mu**, this is the most unobtrusive way to introduce 3rd lib into your project. `BindModel` provides model and binder to sync model states to view elements, and `BindAction` provides an action sender to make user input possible.
+View is only an interface in **Mu**, this is the most unobtrusive way to introduce 3rd lib into your project. Setup binding in `BindModel` to sync model states to view elements, and `BindAction` provides an action sender to make user input possible.
 
 ### Run
 
@@ -95,9 +94,9 @@ A **Mu** component is simply a record contained model initialization, model upda
 
 ```fsharp
 type T<'model, 'action> =
-  { init: unit -> 'model
-    update: 'model -> 'action -> Update<'model, 'action>
-    view: IView<'model, 'action> }
+    { Init: unit -> 'model
+      Update: 'model -> 'action -> Update<'model, 'action>
+      View: IView<'model, 'action> }
 ```
 
 Run component on view when it's ready with:
@@ -115,7 +114,7 @@ Mu.run init update view
 ## Usage
 
 - Install from NuGet: [https://www.nuget.org/packages/com.realazy.Mu](https://www.nuget.org/packages/com.realazy.Mu)
-- Add this project to your solution, or directly add `Mu.fs`. (Yes `Mu` is a single file project, less than 100 SLOC! 🤯)
+- Add this project to your solution, or directly add `Mu.fs`. (Yes `Mu` is a single file project, less than 150 SLOC! 🤯)
 
 ## LICENSE
 
