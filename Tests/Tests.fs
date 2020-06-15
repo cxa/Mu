@@ -34,8 +34,8 @@ let ``Test View Update`` () =
   Mu.run init update view
   Assert.Equal (view.Count, initCount)
   view.Send <| Decr 4
-  Async.Sleep 1 |> Async.RunSynchronously
+  Async.Sleep 1000 |> Async.RunSynchronously
   Assert.Equal (view.Count, initCount - 4)
   view.Send <| Incr 10
-  Async.Sleep 1 |> Async.RunSynchronously
+  Async.Sleep 1000 |> Async.RunSynchronously
   Assert.Equal (view.Count, initCount - 4 + 10)
