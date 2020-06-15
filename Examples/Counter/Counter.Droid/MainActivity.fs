@@ -24,16 +24,15 @@ type MainActivity () =
     MainComponent.runInView x
 
   interface Mu.IView<Model, Action.T> with
-    member x.BindModel model binder =
+    member x.BindModel model =
       let countLabel = x.FindViewById<TextView> Resources.Id.countLabel
-      binder.Bind <@ model.Number @> (fun n ->
-        countLabel.Text <- sprintf "%d" n)
       let randomButton = x.FindViewById<Button> Resources.Id.randomButton
-      binder.Bind <@ model.ButtonTitle @> (fun t ->
-        randomButton.Text <- t)
       let descLabel = x.FindViewById<TextView> Resources.Id.descLabel
-      binder.Bind <@ model.Message @> (fun m ->
-        descLabel.Text <- m)
+      <@
+      countLabel.Text <- sprintf "%d" model.Number
+      descLabel.Text <- model.Message
+      randomButton.Text <- model.ButtonTitle
+      @>
 
     member x.BindAction send =
       let incrButton = x.FindViewById<Button> Resources.Id.incrButton

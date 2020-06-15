@@ -24,13 +24,12 @@ type ViewController (handle:IntPtr) =
     MainComponent.runInView x
 
   interface IView<Model, Action.T> with
-    member x.BindModel model binder =
-      binder.Bind <@ model.Number @> (fun n ->
-        x.countLabel.StringValue <- sprintf "%d" n)
-      binder.Bind <@ model.ButtonTitle @> (fun t ->
-        x.randomButton.Title <- t)
-      binder.Bind <@ model.Message @> (fun m ->
-        x.descLabel.StringValue <- m)
+    member x.BindModel model =
+      <@
+      x.countLabel.StringValue <- sprintf "%d" model.Number
+      x.randomButton.Title <- model.ButtonTitle
+      x.descLabel.StringValue <- model.Message
+      @>
 
     member x.BindAction send =
       x.incrButton.Activated.Add (fun _ -> send Action.Incr)

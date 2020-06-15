@@ -11,13 +11,12 @@ type MainWindow () =
   inherit MainWindowBase ()
 
   interface IView<Model, Action.T> with
-    member x.BindModel model binder =
-      binder.Bind <@ model.Number @> (fun n ->
-        x.countLabel.Content <- sprintf "%d" n)
-      binder.Bind <@ model.ButtonTitle @> (fun t ->
-        x.randButton.Content <- t)
-      binder.Bind <@ model.Message @> (fun m ->
-        x.descTextBlock.Text <- m)
+    member x.BindModel model =
+      <@
+      x.countLabel.Content <- sprintf "%d" model.Number
+      x.randButton.Content <- model.ButtonTitle
+      x.descTextBlock.Text <- model.Message
+      @>
 
     member x.BindAction send =
       x.incrButton.Click.Add (fun _ -> send Action.Incr)

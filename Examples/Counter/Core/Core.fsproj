@@ -11,4 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\Mu\Mu.fsproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Quotations.Evaluator" Version="2.1.0" />
+  </ItemGroup>
 </Project>
