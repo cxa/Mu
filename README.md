@@ -40,8 +40,8 @@ type ViewController (handle:IntPtr) =
   interface Mu.IView<Model, Action> with
     // Setup view and model relationship
     member x.BindModel model =
-      <@ 
-        x.someLabel.Text <- model.Field 
+      <@
+        x.someLabel.Text <- model.Field
         ...
       @>
 
@@ -119,6 +119,10 @@ Mu.run init update view
 ## LICENSE
 
 MIT
+
+## If It Matters
+
+Code formated with `fantomas --indent 2 --pageWidth 96`.
 
 ## Author
 

@@ -1,8 +1,9 @@
-﻿namespace Counter.Mac
+namespace Counter.Mac
+
 open System
 open Foundation
 open AppKit
 
-[<Register ("AppDelegate")>]
-type AppDelegate () =
-  inherit NSApplicationDelegate ()
+[<Register("AppDelegate")>]
+type AppDelegate() =
+  inherit NSApplicationDelegate()

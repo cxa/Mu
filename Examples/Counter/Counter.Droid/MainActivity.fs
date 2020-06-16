@@ -1,4 +1,4 @@
-﻿namespace Counter.Droid
+namespace Counter.Droid
 
 open System
 
@@ -12,32 +12,29 @@ open Mu
 open Counter.Core
 open MainComponent
 
-[<Activity (Label = "Counter.Droid",
-            MainLauncher = true,
-            Icon = "@mipmap/icon")>]
-type MainActivity () =
-  inherit Activity ()
+[<Activity(Label = "Counter.Droid", MainLauncher = true, Icon = "@mipmap/icon")>]
+type MainActivity() =
+  inherit Activity()
 
-  override x.OnCreate (bundle) =
-    base.OnCreate (bundle)
-    x.SetContentView (Resources.Layout.Main)
+  override x.OnCreate(bundle) =
+    base.OnCreate(bundle)
+    x.SetContentView(Resources.Layout.Main)
     MainComponent.runInView x
 
   interface Mu.IView<Model, Action.T> with
+
     member x.BindModel model =
       let countLabel = x.FindViewById<TextView> Resources.Id.countLabel
       let randomButton = x.FindViewById<Button> Resources.Id.randomButton
       let descLabel = x.FindViewById<TextView> Resources.Id.descLabel
-      <@
-      countLabel.Text <- sprintf "%d" model.Number
-      descLabel.Text <- model.Message
-      randomButton.Text <- model.ButtonTitle
-      @>
+      <@ countLabel.Text <- sprintf "%d" model.Number
+         descLabel.Text <- model.Message
+         randomButton.Text <- model.ButtonTitle @>
 
     member x.BindAction send =
       let incrButton = x.FindViewById<Button> Resources.Id.incrButton
-      incrButton.Click.Add (fun _ -> send Action.Incr)
+      incrButton.Click.Add(fun _ -> send Action.Incr)
       let decrButton = x.FindViewById<Button> Resources.Id.decrButton
-      decrButton.Click.Add (fun _ -> send Action.Decr)
+      decrButton.Click.Add(fun _ -> send Action.Decr)
       let randomButton = x.FindViewById<Button> Resources.Id.randomButton
-      randomButton.Click.Add (fun _ -> send Action.HandleRandomizing)
+      randomButton.Click.Add(fun _ -> send Action.HandleRandomizing)

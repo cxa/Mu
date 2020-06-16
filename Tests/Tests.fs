@@ -4,7 +4,8 @@ open System
 open Xunit
 open Mu
 
-type Model = { Count: int }
+type Model =
+  { Count: int }
 
 type Action =
   | Incr of int
@@ -15,25 +16,23 @@ let update model event =
   | Incr i -> Update { Count = model.Count + i }
   | Decr i -> Update { Count = model.Count - i }
 
-type View () =
+type View() =
   member val Count = 0 with get, set
   member val Send: Action<Action> = (fun _ -> ()) with get, set
 
   interface IView<Model, Action> with
-    member x.BindModel model =
-      <@ x.Count <- model.Count @>
+    member x.BindModel model = <@ x.Count <- model.Count @>
 
-    member x.BindAction send =
-      x.Send <- send
+    member x.BindAction send = x.Send <- send
 
 [<Fact>]
-let ``View updates as expect`` () =
+let ``View updates as expect``() =
   let initCount = Random().Next 100
-  let init () = { Count = initCount }
-  let view = View ()
+  let init() = { Count = initCount }
+  let view = View()
   Mu.run init update view
-  Assert.Equal (view.Count, initCount)
+  Assert.Equal(view.Count, initCount)
   view.Send <| Decr 4
-  Assert.Equal (view.Count, initCount - 4)
+  Assert.Equal(view.Count, initCount - 4)
   view.Send <| Incr 10
-  Assert.Equal (view.Count, initCount - 4 + 10)
+  Assert.Equal(view.Count, initCount - 4 + 10)
