@@ -8,5 +8,4 @@ open Counter.Core
 let main argv = 
   let mainWindow = new MainWindow ()
   let application = new Application ()
-  MainComponent.runInView mainWindow
   application.Run mainWindow

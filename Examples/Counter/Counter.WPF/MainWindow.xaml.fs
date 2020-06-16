@@ -7,9 +7,11 @@ open MainComponent
 
 type MainWindowBase = XAML<"MainWindow.xaml">
 
-type MainWindow () =
+type MainWindow () as this =
   inherit MainWindowBase ()
-
+  do
+    this.Loaded.Add (fun _ -> MainComponent.runInView this)
+  
   interface IView<Model, Action.T> with
     member x.BindModel model =
       <@
