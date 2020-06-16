@@ -27,15 +27,13 @@ type View () =
       x.Send <- send
 
 [<Fact>]
-let ``Test View Update`` () =
+let ``View updates as expect`` () =
   let initCount = Random().Next 100
   let init () = { Count = initCount }
   let view = View ()
   Mu.run init update view
   Assert.Equal (view.Count, initCount)
   view.Send <| Decr 4
-  Async.Sleep 1000 |> Async.RunSynchronously
   Assert.Equal (view.Count, initCount - 4)
   view.Send <| Incr 10
-  Async.Sleep 1000 |> Async.RunSynchronously
   Assert.Equal (view.Count, initCount - 4 + 10)

@@ -25,7 +25,10 @@ type IView<'model, 'action> =
 and Action<'action> = 'action -> unit
 
 type private ModelChangeMonitor<'model>() =
-  let curSyncContext = SynchronizationContext.Current
+  let uiSyncContext = 
+    let ctx = SynchronizationContext.Current
+    if isNull ctx then failwith "Can't get UI SynchronizationContext, make sure you run Mu afer UI application initialized"
+    ctx
 
   let rec splitExpr =
     function
@@ -79,11 +82,7 @@ type private ModelChangeMonitor<'model>() =
     evt
 
   member __.NotifyChange field expr =
-    // Ensure event triggering in UI thread/context
-    // FIXME: SynchronizationContext.Current in WPF entry point is null
-    if isNull curSyncContext
-    then event.Trigger(field, expr)
-    else curSyncContext.Post((fun _ -> event.Trigger(field, expr)), null)
+    uiSyncContext.Send((fun _ -> event.Trigger(field, expr)), null)
 
 module Mu =
   type T<'model, 'action> =
@@ -144,5 +143,6 @@ module Mu =
     |> ignore
     view.BindAction sendAction
 
+  // should always run in UI thread
   let run init update view =
     run' { Init = init; Update = update; View = view }
