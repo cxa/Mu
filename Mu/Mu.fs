@@ -119,6 +119,7 @@ module Mu =
         let actionAsync, cancelSource = fn currentModel
         startAsync actionAsync cancelSource sendAction
 
+  // should always run in UI thread
   let run' t =
     let { T.Init = init; Update = update; View = view } = t
     let model = init() |> ref
@@ -142,9 +143,8 @@ module Mu =
     |> ignore
     view.BindAction sendAction
 
-// should always run in UI thread
-let run init update view =
-  run'
-    { Init = init
-      Update = update
-      View = view }
+  let run init update view =
+    run'
+      { Init = init
+        Update = update
+        View = view }
