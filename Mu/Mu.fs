@@ -110,8 +110,8 @@ module Mu =
         sendMsg msg }
 
     if isNull cancelSrc
-    then Async.StartImmediate computation
-    else Async.StartImmediate(computation, cancelSrc.Token)
+    then Async.Start computation
+    else Async.Start (computation, cancelSrc.Token)
 
   let private handleEffects effects currentModel sendAction =
     match effects with
