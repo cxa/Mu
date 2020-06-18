@@ -7,23 +7,23 @@ open Mu
 type Model =
   { Count: int }
 
-type Action =
+type Msg =
   | Incr of int
   | Decr of int
 
-let update model event =
-  match event with
+let update model msg =
+  match msg with
   | Incr i -> Update { Count = model.Count + i }
   | Decr i -> Update { Count = model.Count - i }
 
 type View() =
   member val Count = 0 with get, set
-  member val Send: Action<Action> = (fun _ -> ()) with get, set
+  member val Send: Send<Msg> = (fun _ -> ()) with get, set
 
-  interface IView<Model, Action> with
+  interface IView<Model, Msg> with
     member x.BindModel model = <@ x.Count <- model.Count @>
 
-    member x.BindAction send = x.Send <- send
+    member x.BindMsg send = x.Send <- send
 
 [<Fact>]
 let ``View updates as expect``() =

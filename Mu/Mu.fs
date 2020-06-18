@@ -6,25 +6,28 @@ open Microsoft.FSharp.Reflection
 open System.Threading
 open FSharp.Quotations.Evaluator
 
-type Update<'model, 'action> =
+type Send<'msg> = 'msg -> unit
+
+type Eff<'model, 'msg> = 'model -> Send<'msg> -> unit
+
+type Update<'model, 'msg> =
   | NoUpdate
   | Update of 'model
-  | UpdateWithEffects of 'model * Effects<'model, 'action>
-  | Effects of Effects<'model, 'action>
+  | UpdateWithEffects of 'model * Effects<'model, 'msg>
+  | Effects of Effects<'model, 'msg>
 
-and Effects<'model, 'action> =
-  | Eff of ('model -> unit)
-  | Cmd of ('model -> 'action)
-  | AsyncCmd of ('model -> Async<'action>)
-  | AsyncCmd' of ('model -> (Async<'action> * CancellationTokenSource))
+and Effects<'model, 'msg> =
+  | Eff of Eff<'model, 'msg>
+  | Cmd of ('model -> 'msg) // Sync cmd
+  | Cmd' of ('model -> Async<'msg>) // Async cmd
+  | Cmd'' of ('model -> (Async<'msg> * CancellationTokenSource)) // Cancellable anync cmd
 
-type IView<'model, 'action> =
+type IView<'model, 'msg> =
   abstract BindModel: 'model -> Expr<unit>
-  abstract BindAction: Action<'action> -> unit
+  abstract BindMsg: Send<'msg> -> unit
 
-and Action<'action> = 'action -> unit
 
-type private ModelChangeMonitor<'model>() =
+type private ModelEventHandler<'model>() =
 
   let uiSyncContext =
     let ctx = SynchronizationContext.Current
@@ -38,8 +41,8 @@ type private ModelChangeMonitor<'model>() =
     | Sequential(h, t) -> h :: splitExpr t
     | t -> [ t ]
 
-  let rec isExprDependedOnModelField fields expr =
-    let thatExpr = isExprDependedOnModelField fields
+  let rec exprContainsFields fields expr =
+    let thatExpr = exprContainsFields fields
     match expr with
     | Application(e1, e2) -> thatExpr e1 || thatExpr e2
     | Call(eOpt, _methodInfo, eList) ->
@@ -78,18 +81,18 @@ type private ModelChangeMonitor<'model>() =
     evt.Publish.Add(fun (changedFields, expr) ->
       expr
       |> splitExpr
-      |> List.filter (isExprDependedOnModelField changedFields)
+      |> List.filter (exprContainsFields changedFields)
       |> List.iter (QuotationEvaluator.EvaluateUntyped >> ignore))
     evt
 
-  member __.NotifyChange field expr =
-    uiSyncContext.Send((fun _ -> event.Trigger(field, expr)), null)
+  member __.NotifyChange fields expr =
+    uiSyncContext.Send((fun _ -> event.Trigger(fields, expr)), null)
 
 module Mu =
-  type T<'model, 'action> =
+  type T<'model, 'msg> =
     { Init: unit -> 'model
-      Update: 'model -> 'action -> Update<'model, 'action>
-      View: IView<'model, 'action> }
+      Update: 'model -> 'msg -> Update<'model, 'msg>
+      View: IView<'model, 'msg> }
 
   let private diff m1 m2 expr cb =
     let diffFields =
@@ -100,48 +103,47 @@ module Mu =
 
     if Set.isEmpty diffFields then () else cb diffFields expr
 
-  let private startAsync actionAsync (cancelSrc: CancellationTokenSource) sendAction =
+  let private startAsync msgAsync (cancelSrc: CancellationTokenSource) sendMsg =
     let computation =
       async {
-        let! action = actionAsync
-        sendAction action }
+        let! msg = msgAsync
+        sendMsg msg }
 
-    if not (isNull cancelSrc) then Async.StartImmediate(computation, cancelSrc.Token)
+    if isNull cancelSrc
+    then Async.StartImmediate computation
+    else Async.StartImmediate(computation, cancelSrc.Token)
 
   let private handleEffects effects currentModel sendAction =
     match effects with
-    | Eff fn -> fn currentModel
+    | Eff fn -> fn currentModel sendAction
     | Cmd fn -> sendAction (fn currentModel)
-    | AsyncCmd fn ->
-        let actionAsync = fn currentModel
-        startAsync actionAsync null sendAction
-    | AsyncCmd' fn ->
-        let actionAsync, cancelSource = fn currentModel
-        startAsync actionAsync cancelSource sendAction
+    | Cmd' fn ->
+        let msgAsync = fn currentModel
+        startAsync msgAsync null sendAction
+    | Cmd'' fn ->
+        let msgAsync, cancelSource = fn currentModel
+        startAsync msgAsync cancelSource sendAction
 
   // should always run in UI thread
   let run' t =
     let { T.Init = init; Update = update; View = view } = t
     let model = init() |> ref
-    let actionMonitor = Event<'action>()
-    let sendAction = actionMonitor.Trigger
-    let modelMonitor = ModelChangeMonitor()
-    actionMonitor.Publish.Add(fun e ->
-      match update !model e with
+    let modelEventHandler = ModelEventHandler()
+    let msgEventHandler = Event<'msg>()
+    let sendMsg = msgEventHandler.Trigger
+    msgEventHandler.Publish.Add(fun msg ->
+      match update !model msg with
       | NoUpdate -> ()
       | Update newModel ->
-          diff !model newModel (view.BindModel newModel) modelMonitor.NotifyChange
+          diff !model newModel (view.BindModel newModel) modelEventHandler.NotifyChange
           model := newModel
       | UpdateWithEffects(newModel, effects) ->
-          diff !model newModel (view.BindModel newModel) modelMonitor.NotifyChange
+          diff !model newModel (view.BindModel newModel) modelEventHandler.NotifyChange
           model := newModel
-          handleEffects effects !model sendAction
-      | Effects effects -> handleEffects effects !model sendAction)
-
-    view.BindModel !model
-    |> QuotationEvaluator.EvaluateUntyped
-    |> ignore
-    view.BindAction sendAction
+          handleEffects effects !model sendMsg
+      | Effects effects -> handleEffects effects !model sendMsg)
+    view.BindModel !model |> QuotationEvaluator.Evaluate
+    view.BindMsg sendMsg
 
   let run init update view =
     run'

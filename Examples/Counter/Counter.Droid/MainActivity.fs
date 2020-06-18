@@ -21,7 +21,7 @@ type MainActivity() =
     x.SetContentView(Resources.Layout.Main)
     MainComponent.runInView x
 
-  interface Mu.IView<Model, Action.T> with
+  interface Mu.IView<Model, Msg.T> with
 
     member x.BindModel model =
       let countLabel = x.FindViewById<TextView> Resources.Id.countLabel
@@ -31,10 +31,10 @@ type MainActivity() =
          descLabel.Text <- model.Message
          randomButton.Text <- model.ButtonTitle @>
 
-    member x.BindAction send =
+    member x.BindMsg send =
       let incrButton = x.FindViewById<Button> Resources.Id.incrButton
-      incrButton.Click.Add(fun _ -> send Action.Incr)
+      incrButton.Click.Add(fun _ -> send Msg.Incr)
       let decrButton = x.FindViewById<Button> Resources.Id.decrButton
-      decrButton.Click.Add(fun _ -> send Action.Decr)
+      decrButton.Click.Add(fun _ -> send Msg.Decr)
       let randomButton = x.FindViewById<Button> Resources.Id.randomButton
-      randomButton.Click.Add(fun _ -> send Action.HandleRandomizing)
+      randomButton.Click.Add(fun _ -> send Msg.HandleRandomizing)

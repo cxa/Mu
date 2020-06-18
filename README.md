@@ -18,12 +18,12 @@ This is a simple pattern for architecting GUI components.
 // Model
 type Model = { ... }
 
-// Actions, all update through action to perform
-type Action = Reset | ...
+// Msgs, all update through sending message to perform
+type Msg = Reset | ...
 
 // Update
-let update model action =
-  match action with
+let update model msg =
+  match msg with
   | Reset -> Update { model with ... }
   ...
 
@@ -34,10 +34,10 @@ type ViewController (handle:IntPtr) =
 
   override x.ViewDidLoad () =
     base.ViewDidLoad ()
-    // Glue model update view
-    Mu.run initModel update x
+    // Glue model update, and view
+    Mu.run init update x
 
-  interface Mu.IView<Model, Action> with
+  interface Mu.IView<Model, Msg> with
     // Setup view and model relationship
     member x.BindModel model =
       <@
@@ -46,7 +46,7 @@ type ViewController (handle:IntPtr) =
       @>
 
     // Setup communicating between view and model, via aciton
-    member x.BindAction send =
+    member x.BindMsg send =
       x.resetButton.TouchUpInside.Add (fun _ -> send Reset)
       ...
 ```
@@ -62,41 +62,46 @@ Model should be a DTO(Data Transfer Object) only, immutable record is the best w
 ### Update
 
 ```fsharp
-type Update<'model, 'action> =
+type Send<'msg> = 'msg -> unit
+
+type Eff<'model, 'msg> = 'model -> Send<'msg> -> unit
+
+type Update<'model, 'msg> =
   | NoUpdate
   | Update of 'model
-  | UpdateWithEffects of 'model * Effects<'model, 'action>
-  | Effects of Effects<'model, 'action>
-and Effects<'model, 'action> =
-  | Eff of ('model -> unit)
-  | Cmd of ('model -> 'action)
-  | AsyncCmd of ('model -> Async<'action>)
-  | AsyncCmd' of ('model -> Async<'action> * CancellationTokenSource)
+  | UpdateWithEffects of 'model * Effects<'model, 'msg>
+  | Effects of Effects<'model, 'msg>
+
+and Effects<'model, 'msg> =
+  | Eff of Eff<'model, 'msg>
+  | Cmd of ('model -> 'msg) // Sync cmd
+  | Cmd' of ('model -> Async<'msg>) // Async cmd
+  | Cmd'' of ('model -> (Async<'msg> * CancellationTokenSource)) // Cancellable anync cmd
 ```
 
-Update is about changing model through action: `'model -> 'action -> Update<'model, 'action>`.
+Update is about changing model through msg: `'model -> 'msg -> Update<'model, 'msg>`.
 
-Not all updates are just model changes, side effects without or with model changing are common. **Mu** provides current model state and the action sender when performing side effects.
+Not all updates are just model changes, side effects without or with model changing are common. **Mu** provides current model and the message sender when performing side effects.
 
 ### View
 
 ```fsharp
-type IView<'model, 'action> =
+type IView<'model, 'msg> =
   abstract BindModel: 'model -> Expr<unit>
-  abstract BindAction: Action<'action> -> unit
+  abstract BindMsg: Send<'msg> -> unit
 ```
 
-View is only an interface in **Mu**, this is the most unobtrusive way to introduce 3rd lib into your project. Setup binding in `BindModel` to sync model states to view elements, and `BindAction` provides an action sender to make user input possible.
+View is only an interface in **Mu**, this is the most unobtrusive way to introduce 3rd lib into your project. Setup binding in `BindModel` to sync model states to view elements, and `BindMsg` provides a message sender to make obtaining user input possible.
 
 ### Run
 
 A **Mu** component is simply a record contained model initialization, model updater and view:
 
 ```fsharp
-type T<'model, 'action> =
+type T<'model, 'msg> =
     { Init: unit -> 'model
-      Update: 'model -> 'action -> Update<'model, 'action>
-      View: IView<'model, 'action> }
+      Update: 'model -> 'msg -> Update<'model, 'msg>
+      View: IView<'model, 'msg> }
 ```
 
 Run component on view when it's ready with:

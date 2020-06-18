@@ -32,14 +32,14 @@ type ViewController(handle: IntPtr) =
     base.ViewDidLoad()
     MainComponent.runInView x
 
-  interface IView<Model, Action.T> with
+  interface IView<Model, Msg.T> with
 
     member x.BindModel model =
       <@ x.countLabel.StringValue <- sprintf "%d" model.Number
          x.randomButton.Title <- model.ButtonTitle
          x.descLabel.StringValue <- model.Message @>
 
-    member x.BindAction send =
-      x.incrButton.Activated.Add(fun _ -> send Action.Incr)
-      x.decrButton.Activated.Add(fun _ -> send Action.Decr)
-      x.randomButton.Activated.Add(fun _ -> send Action.HandleRandomizing)
+    member x.BindMsg send =
+      x.incrButton.Activated.Add(fun _ -> send Msg.Incr)
+      x.decrButton.Activated.Add(fun _ -> send Msg.Decr)
+      x.randomButton.Activated.Add(fun _ -> send Msg.HandleRandomizing)

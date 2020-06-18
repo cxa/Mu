@@ -11,7 +11,7 @@ module MainComponent =
       ButtonTitle: string
       Message: string }
 
-  module Action =
+  module Msg =
     type T =
       | Incr
       | Decr
@@ -31,7 +31,7 @@ module MainComponent =
           match choice with
           | Choice1Of2 str -> Ok str
           | Choice2Of2 err -> Error err
-        return (Action.ReceiveRandomYear result)
+        return (Msg.ReceiveRandomYear result)
       }, tkSource
 
   let init() =
@@ -43,30 +43,30 @@ module MainComponent =
 
   let update model action =
     match action with
-    | Action.Incr -> Update { model with Number = model.Number + 1 }
-    | Action.Decr -> Update { model with Number = model.Number - 1 }
-    | Action.HandleRandomizing ->
+    | Msg.Incr -> Update { model with Number = model.Number + 1 }
+    | Msg.Decr -> Update { model with Number = model.Number - 1 }
+    | Msg.HandleRandomizing ->
         let cmd =
-          Cmd
-            (fun model ->
-              if model.Requesting then Action.UserCancel else Action.RequestRandomYear)
+          Cmd(fun model ->
+            if model.Requesting then Msg.UserCancel else Msg.RequestRandomYear)
         Effects cmd
-    | Action.RequestRandomYear ->
+    | Msg.RequestRandomYear ->
         let ts = new CancellationTokenSource()
         UpdateWithEffects
           ({ model with
                Requesting = true
                RequestingTokenSource = Some ts
                ButtonTitle = "Cancel"
-               Message = "Requesting a random year..." }, AsyncCmd'(Effects.requestRandom ts))
-    | Action.UserCancel ->
+               Message = "Requesting a random year..." }, Cmd''(Effects.requestRandom ts))
+    | Msg.UserCancel ->
         UpdateWithEffects
           ({ model with
                Requesting = false
                ButtonTitle = "Randomize"
                Message = "" },
-           Eff(fun model -> model.RequestingTokenSource |> Option.iter (fun s -> s.Cancel())))
-    | Action.ReceiveRandomYear(Ok str) ->
+           Eff(fun model _send ->
+             model.RequestingTokenSource |> Option.iter (fun s -> s.Cancel())))
+    | Msg.ReceiveRandomYear(Ok str) ->
         let number =
           str.Split(' ')
           |> Array.head
@@ -78,7 +78,7 @@ module MainComponent =
               ButtonTitle = "Randomize"
               Number = number
               Message = str }
-    | Action.ReceiveRandomYear(Error err) ->
+    | Msg.ReceiveRandomYear(Error err) ->
         Update
           { model with
               RequestingTokenSource = None

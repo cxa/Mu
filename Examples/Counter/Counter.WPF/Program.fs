@@ -1,4 +1,4 @@
-﻿open System
+open System
 open System.Windows
 open Counter.WPF
 
