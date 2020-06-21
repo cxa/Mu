@@ -86,14 +86,14 @@ module Mu =
       Update: 'model -> 'msg -> Update<'model, 'msg>
       View: IView<'model, 'msg> }
 
-  let private diff m1 m2 expr cb =
+  let private diff fields m1 m2 expr cb =
     let diffFields =
-      FSharpType.GetRecordFields(m1.GetType())
-      |> Seq.fold (fun acc field ->
+      fields
+      |> Seq.fold (fun acc (field: System.Reflection.PropertyInfo) ->
            let v1, v2 = field.GetValue m1, field.GetValue m2
            if v1 <> v2 then Set.add field.Name acc else acc) Set.empty
 
-    if Set.isEmpty diffFields then () else cb diffFields expr
+    if not (Set.isEmpty diffFields) then cb diffFields expr
 
   let private startAsync msgAsync (cancelSrc: CancellationTokenSource) sendMsg =
     let computation =
@@ -132,14 +132,15 @@ module Mu =
     let msgEventHandler = Event<'msg>()
     // ensuresendMsg on UI thread
     let sendMsg msg = uiSyncContext.Send((fun _ -> msgEventHandler.Trigger msg), null)
+    let fields = FSharpType.GetRecordFields((!model).GetType())
     msgEventHandler.Publish.Add(fun msg ->
       match update !model msg with
       | NoUpdate -> ()
       | Update newModel ->
-          diff !model newModel (view.BindModel newModel) modelEventHandler.NotifyChange
+          diff fields !model newModel (view.BindModel newModel) modelEventHandler.NotifyChange
           model := newModel
       | UpdateWithEffects(newModel, effects) ->
-          diff !model newModel (view.BindModel newModel) modelEventHandler.NotifyChange
+          diff fields !model newModel (view.BindModel newModel) modelEventHandler.NotifyChange
           model := newModel
           handleEffects effects !model sendMsg
       | Effects effects -> handleEffects effects !model sendMsg)
