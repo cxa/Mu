@@ -29,13 +29,6 @@ type IView<'model, 'msg> =
 
 type private ModelEventHandler<'model>() =
 
-  let uiSyncContext =
-    let ctx = SynchronizationContext.Current
-    if isNull ctx then
-      failwith
-        "Can't get UI SynchronizationContext, make sure you run Mu afer UI application initialized"
-    ctx
-
   let rec splitExpr =
     function
     | Sequential(h, t) -> h :: splitExpr t
@@ -85,8 +78,7 @@ type private ModelEventHandler<'model>() =
       |> List.iter (QuotationEvaluator.EvaluateUntyped >> ignore))
     evt
 
-  member __.NotifyChange fields expr =
-    uiSyncContext.Send((fun _ -> event.Trigger(fields, expr)), null)
+  member __.NotifyChange fields expr = event.Trigger(fields, expr)
 
 module Mu =
   type T<'model, 'msg> =
@@ -111,26 +103,35 @@ module Mu =
 
     if isNull cancelSrc
     then Async.Start computation
-    else Async.Start (computation, cancelSrc.Token)
+    else Async.Start(computation, cancelSrc.Token)
 
-  let private handleEffects effects currentModel sendAction =
+  let private handleEffects effects currentModel sendMsg =
     match effects with
-    | Eff fn -> fn currentModel sendAction
-    | Cmd fn -> sendAction (fn currentModel)
+    | Eff fn -> fn currentModel sendMsg
+    | Cmd fn -> sendMsg (fn currentModel)
     | Cmd' fn ->
         let msgAsync = fn currentModel
-        startAsync msgAsync null sendAction
+        startAsync msgAsync null sendMsg
     | Cmd'' fn ->
         let msgAsync, cancelSource = fn currentModel
-        startAsync msgAsync cancelSource sendAction
+        startAsync msgAsync cancelSource sendMsg
 
   // should always run in UI thread
   let run' t =
     let { T.Init = init; Update = update; View = view } = t
+
+    let uiSyncContext =
+      let ctx = SynchronizationContext.Current
+      if isNull ctx then
+        failwith
+          "Can't get UI SynchronizationContext, make sure you run Mu afer UI application initialized"
+      ctx
+
     let model = init() |> ref
     let modelEventHandler = ModelEventHandler()
     let msgEventHandler = Event<'msg>()
-    let sendMsg = msgEventHandler.Trigger
+    // ensuresendMsg on UI thread
+    let sendMsg msg = uiSyncContext.Send((fun _ -> msgEventHandler.Trigger msg), null)
     msgEventHandler.Publish.Add(fun msg ->
       match update !model msg with
       | NoUpdate -> ()
