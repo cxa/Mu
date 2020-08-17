@@ -24,7 +24,7 @@ type Msg = Reset | ...
 // Update
 let update model msg =
   match msg with
-  | Reset -> Update { model with ... }
+  | Reset -> newModel, cmd
   ...
 
 // View
@@ -39,13 +39,15 @@ type ViewController (handle:IntPtr) =
 
   interface Mu.IView<Model, Msg> with
     // Setup view and model relationship
+    // We are using quotations for reactivity,
+    // that means view will update automatically if model updated
     member x.BindModel model =
       <@
         x.someLabel.Text <- model.Field
         ...
       @>
 
-    // Setup communicating between view and model, via aciton
+    // Controls use `send` to send message to inform updates
     member x.BindMsg send =
       x.resetButton.TouchUpInside.Add (fun _ -> send Reset)
       ...
@@ -53,45 +55,27 @@ type ViewController (handle:IntPtr) =
 
 That is really the essence of The Elm Architecture!
 
-With **Mu**, Model and Update are separated from view, this means that they can shared across platforms, implementing `Mu.IView<'model, 'acition>` interfaces is the only required step to support specific platform.
+With **Mu**, Model and Update are separated from view, this means that they can shared across platforms, implementing `Mu.IView<'model, 'msg>` interfaces is the only required step to support specific platform.
 
 ### Model
 
-Model should be a DTO(Data Transfer Object) only, immutable record is the best way to represent model in F#.
+A model should be a DTO(Data Transfer Object) only, An immutable record is the best way to represent a model in F#.
 
 ### Update
 
-```fsharp
-type Send<'msg> = 'msg -> unit
-
-type Eff<'model, 'msg> = 'model -> Send<'msg> -> unit
-
-type Update<'model, 'msg> =
-  | NoUpdate
-  | Update of 'model
-  | UpdateWithEffects of 'model * Effects<'model, 'msg>
-  | Effects of Effects<'model, 'msg>
-
-and Effects<'model, 'msg> =
-  | Eff of Eff<'model, 'msg>
-  | Cmd of ('model -> 'msg) // Sync cmd
-  | Cmd' of ('model -> Async<'msg>) // Async cmd
-  | Cmd'' of ('model -> (Async<'msg> * CancellationTokenSource)) // Cancellable anync cmd
-```
-
-Update is about changing model through msg: `'model -> 'msg -> Update<'model, 'msg>`.
-
-Not all updates are just model changes, side effects without or with model changing are common. **Mu** provides current model and the message sender when performing side effects.
+The `Update` is about changing model through msg: `'model -> 'msg -> 'model, Cmd<'msg>`. Beside changing model, you can guide **`Mu`** to perform further actions via `Cmd<'msg>`.
 
 ### View
 
 ```fsharp
+type Send<'msg> = 'msg -> unit
+
 type IView<'model, 'msg> =
   abstract BindModel: 'model -> Expr<unit>
   abstract BindMsg: Send<'msg> -> unit
 ```
 
-View is only an interface in **Mu**, this is the most unobtrusive way to introduce 3rd lib into your project. Setup binding in `BindModel` to sync model states to view elements, and `BindMsg` provides a message sender to make obtaining user input possible.
+A `View` is only an interface in **`Mu`**, this is the most unobtrusive way to introduce 3rd lib into your project. Setup binding in `BindModel` to sync model to view elements, and `BindMsg` provides a message sender to make obtaining user input possible.
 
 ### Run
 
@@ -100,7 +84,7 @@ A **Mu** component is simply a record contained model initialization, model upda
 ```fsharp
 type T<'model, 'msg> =
     { Init: unit -> 'model
-      Update: 'model -> 'msg -> Update<'model, 'msg>
+      Update: 'model -> 'msg -> 'model, Cmd<'msg>
       View: IView<'model, 'msg> }
 ```
 
@@ -119,15 +103,11 @@ Mu.run init update view
 ## Usage
 
 - Install from NuGet: [https://www.nuget.org/packages/com.realazy.Mu](https://www.nuget.org/packages/com.realazy.Mu)
-- Add this project to your solution, or directly add `Mu.fs`. (Yes `Mu` is a single file project, less than 150 SLOC! 🤯)
+- Add this project to your solution, or directly add `Mu.fs`. (Yes `Mu` is a single file project, less than 200 SLOC! 🤯)
 
 ## LICENSE
 
 MIT
-
-## If It Matters
-
-Code formated with `fantomas --indent 2 --pageWidth 96`.
 
 ## Author
 
