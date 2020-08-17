@@ -13,17 +13,22 @@ type Msg =
 
 let update model msg =
   match msg with
-  | Incr i -> Update { Count = model.Count + i }
-  | Decr i -> Update { Count = model.Count - i }
+  | Incr i ->
+    { model with Count = model.Count + i }, Cmd.none
+
+  | Decr i ->
+    { model with Count = model.Count - i }, Cmd.none
 
 type View() =
   member val Count = 0 with get, set
   member val Send: Send<Msg> = (fun _ -> ()) with get, set
 
   interface IView<Model, Msg> with
-    member x.BindModel model = <@ x.Count <- model.Count @>
+    member x.BindModel model =
+      <@ x.Count <- model.Count @>
 
-    member x.BindMsg send = x.Send <- send
+    member x.BindMsg send =
+      x.Send <- send
 
 [<Fact>]
 let ``View updates as expect``() =
@@ -31,8 +36,14 @@ let ``View updates as expect``() =
   let init() = { Count = initCount }
   let view = View()
   Mu.run init update view
-  Assert.Equal(view.Count, initCount)
-  view.Send <| Decr 4
-  Assert.Equal(view.Count, initCount - 4)
-  view.Send <| Incr 10
-  Assert.Equal(view.Count, initCount - 4 + 10)
+  // UI updates are async, we use an `Async.Sleep` for delay checking
+  async {
+    do! Async.Sleep(10)
+    Assert.Equal(view.Count, initCount)
+    view.Send <| Decr 4
+    do! Async.Sleep(10)
+    Assert.Equal(view.Count, initCount - 4)
+    view.Send <| Incr 10
+    do! Async.Sleep(10)
+    Assert.Equal(view.Count, initCount - 4 + 10)
+  } |> Async.StartImmediate
