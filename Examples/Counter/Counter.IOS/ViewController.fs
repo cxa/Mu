@@ -13,27 +13,17 @@ open MainComponent
 type ViewController(handle: IntPtr) =
   inherit UIViewController(handle)
 
-  [<Outlet>]
-  member val countLabel: UILabel = null with get, set
-
-  [<Outlet>]
-  member val incrButton: UIButton = null with get, set
-
-  [<Outlet>]
-  member val decrButton: UIButton = null with get, set
-
-  [<Outlet>]
-  member val randButton: UIButton = null with get, set
-
-  [<Outlet>]
-  member val descLabel: UILabel = null with get, set
+  [<Outlet>] member val countLabel: UILabel = null with get, set
+  [<Outlet>] member val incrButton: UIButton = null with get, set
+  [<Outlet>] member val decrButton: UIButton = null with get, set
+  [<Outlet>] member val randButton: UIButton = null with get, set
+  [<Outlet>] member val descLabel: UILabel = null with get, set
 
   override x.ViewDidLoad() =
     base.ViewDidLoad()
     MainComponent.runInView x
 
   interface IView<Model, Msg.T> with
-
     member x.BindModel model =
       <@ x.countLabel.Text <- sprintf "%d" model.Number
          x.randButton.SetTitle(model.ButtonTitle, UIControlState.Normal)
