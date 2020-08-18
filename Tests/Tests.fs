@@ -21,7 +21,7 @@ let update model msg =
 
 type View() =
   member val Count = 0 with get, set
-  member val Send: Send<Msg> = (fun _ -> ()) with get, set
+  member val Send: Send<Msg> = ignore with get, set
 
   interface IView<Model, Msg> with
     member x.BindModel model =

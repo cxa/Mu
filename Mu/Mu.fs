@@ -53,18 +53,19 @@ module Cmd =
   module OfAsync =
     let either' (computation: Async<'a>) (ofSuccess: 'a -> 'msg) (ofError: exn -> 'msg) (cTokenSrc: CancellationTokenSource) : Cmd<'msg> =
       let cmd send =
-        let async = async {
-          let! choice = Async.Catch computation
+        let asyncCmd = async {
           let! token = Async.CancellationToken
-          if not token.IsCancellationRequested then
-            let msg = match choice with
-                      | Choice1Of2 a -> ofSuccess a
-                      | Choice2Of2 e -> ofError e
-            send msg
+          if token.IsCancellationRequested then return ()
+          let! choice = Async.Catch computation
+          if token.IsCancellationRequested then return ()
+          let msg = match choice with
+                    | Choice1Of2 a -> ofSuccess a
+                    | Choice2Of2 e -> ofError e
+          send msg
         }
         match isNull cTokenSrc with
-        | true -> Async.Start (async)
-        | false -> Async.Start (async, cTokenSrc.Token)
+        | true -> Async.Start (asyncCmd)
+        | false -> Async.Start (asyncCmd, cTokenSrc.Token)
       [cmd]
 
     let either (computation: Async<'a>) (ofSuccess: 'a -> 'msg) (ofError: exn -> 'msg) =
