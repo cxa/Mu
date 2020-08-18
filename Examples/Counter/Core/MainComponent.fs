@@ -28,12 +28,12 @@ module MainComponent =
       let ofErr err = Msg.ReceiveRandomYear (Error err)
       Cmd.OfTask.either' task ofSucc ofErr tkSource
 
-  let init() =
+  let init () =
     { Number = System.Random().Next 100
       Requesting = false
       RequestingTokenSource = None
       ButtonTitle = "Randomize"
-      Message = "" }
+      Message = "" }, Cmd.none
 
   let update model action =
     match action with

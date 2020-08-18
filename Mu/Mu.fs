@@ -175,8 +175,8 @@ type private ModelEventHandler<'model> (uiContext: SynchronizationContext) =
 [<RequireQualifiedAccess>]
 module Mu =
   type T<'model, 'msg> =
-    { Init: unit -> 'model
-      Update: 'model -> 'msg -> ('model * Cmd<'msg>)
+    { Init: unit -> 'model * Cmd<'msg>
+      Update: 'model -> 'msg -> 'model * Cmd<'msg>
       View: IView<'model, 'msg> }
 
   let private diff fields m1 m2 expr callback =
@@ -196,7 +196,8 @@ module Mu =
         failwith "Can't get UI SynchronizationContext, make sure you run Mu afer UI application initialized"
       ctx
 
-    let model = init () |> ref
+    let initModel, initCmd = init ()
+    let model = ref initModel
     let modelEventHandler = new ModelEventHandler<'model> (uiSyncContext)
     let msgEventHandler = Event<'msg> ()
     let sendMsg msg = msgEventHandler.Trigger msg
@@ -206,10 +207,11 @@ module Mu =
       if !model <> newModel then
         diff fields !model newModel (view.BindModel newModel) modelEventHandler.NotifyChange
         model := newModel
-      if not (Cmd.isNone cmd) then Cmd.exec sendMsg cmd
+      Cmd.exec sendMsg cmd
     )
     view.BindModel !model |> QuotationEvaluator.Evaluate
     view.BindMsg sendMsg
+    Cmd.exec sendMsg initCmd
 
   let run init update view =
     run' { Init = init; Update = update; View = view }

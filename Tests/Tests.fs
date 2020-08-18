@@ -19,7 +19,7 @@ let update model msg =
   | Decr i ->
     { model with Count = model.Count - i }, Cmd.none
 
-type View() =
+type View () =
   member val Count = 0 with get, set
   member val Send: Send<Msg> = ignore with get, set
 
@@ -33,7 +33,7 @@ type View() =
 [<Fact>]
 let ``View updates as expect``() =
   let initCount = Random().Next 100
-  let init() = { Count = initCount }
+  let init () = { Count = initCount }, Cmd.none
   let view = View()
   Mu.run init update view
   // UI updates are async, we use an `Async.Sleep` for delay checking
