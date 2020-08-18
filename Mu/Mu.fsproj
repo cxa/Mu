@@ -4,13 +4,13 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <PackageId>com.realazy.Mu</PackageId>
     <Title>Mu — The Elm Architecture on Xamarin</Title>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <description>
       Apply The Elm Architecture pattern on Xamarin stack, with another simple, unobtrusive way.
     </description>
     <Authors>Realazy Xian-an CHEN</Authors>
     <Copyright>2018 ~ 2020 © Realazy Xian-an CHEN</Copyright>
-    <PackageLicense>https://github.com/cxa/Mu/blob/master/LICENSE</PackageLicense>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/cxa/Mu</PackageProjectUrl>
     <PackageTags>TEA, Elm, Elmish, architecture</PackageTags>
   </PropertyGroup>
