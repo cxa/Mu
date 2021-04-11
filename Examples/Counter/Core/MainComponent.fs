@@ -10,6 +10,7 @@ module MainComponent =
       RequestingTokenSource: CancellationTokenSource option
       ButtonTitle: string
       Message: string }
+    member this.NumberString = sprintf "%d" this.Number
 
   module Msg =
     type T =
@@ -21,12 +22,12 @@ module MainComponent =
       | ReceiveRandomYear of Result<string, exn>
 
   module private Cmds =
-    let requestRandomNumber tkSource =
+    let requestRandomNumber (tkSource:CancellationTokenSource) =
       use wc = new System.Net.WebClient()
       let task = wc.DownloadStringTaskAsync "http://numbersapi.com/random/year"
       let ofSucc str = Msg.ReceiveRandomYear (Ok str)
       let ofErr err = Msg.ReceiveRandomYear (Error err)
-      Cmd.OfTask.either' task ofSucc ofErr tkSource
+      Cmd.OfTask'.either (fun a -> Async.Start (a, tkSource.Token)) task ofSucc ofErr 
 
   let init () =
     { Number = System.Random().Next 100
@@ -67,7 +68,7 @@ module MainComponent =
             Message = "" }
       let cancel () =
         model.RequestingTokenSource |> Option.iter (fun s -> s.Cancel())
-      newModel, Cmd.OfFunc.eff cancel
+      newModel, Cmd.OfEff.just cancel
 
     | Msg.ReceiveRandomYear(Ok str) ->
       let number = str.Split(' ') |> Array.head |> int // unsafe here

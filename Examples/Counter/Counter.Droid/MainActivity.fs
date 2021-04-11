@@ -3,10 +3,6 @@ namespace Counter.Droid
 open System
 
 open Android.App
-open Android.Content
-open Android.OS
-open Android.Runtime
-open Android.Views
 open Android.Widget
 open Mu
 open Counter.Core
@@ -27,7 +23,7 @@ type MainActivity() =
       let countLabel = x.FindViewById<TextView> Resources.Id.countLabel
       let randomButton = x.FindViewById<Button> Resources.Id.randomButton
       let descLabel = x.FindViewById<TextView> Resources.Id.descLabel
-      <@ countLabel.Text <- sprintf "%d" model.Number
+      <@ countLabel.Text <- model.NumberString
          descLabel.Text <- model.Message
          randomButton.Text <- model.ButtonTitle @>
 

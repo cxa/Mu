@@ -25,7 +25,7 @@ type ViewController(handle: IntPtr) =
 
   interface IView<Model, Msg.T> with
     member x.BindModel model =
-      <@ x.countLabel.Text <- sprintf "%d" model.Number
+      <@ x.countLabel.Text <- model.NumberString
          x.randButton.SetTitle(model.ButtonTitle, UIControlState.Normal)
          x.descLabel.Text <- model.Message @>
 
