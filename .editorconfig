@@ -1,0 +1,15 @@
+[*.fs]
+indent_size=2
+max_line_length=96
+fsharp_max_if_then_else_short_width=96
+fsharp_max_infix_operator_expression=96
+fsharp_max_record_width=96
+fsharp_max_array_or_list_width=96
+fsharp_max_value_binding_width=96
+fsharp_max_function_binding_width=96
+fsharp_max_dot_get_expression_width=96
+fsharp_max_elmish_width=96
+fsharp_blank_lines_around_nested_multiline_expressions=false
+fsharp_multi_line_lambda_closing_newline=true
+fsharp_align_function_signature_to_indentation=true
+fsharp_alternative_long_member_definitions=true
