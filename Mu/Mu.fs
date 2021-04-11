@@ -2,175 +2,220 @@ namespace Mu
 
 open Microsoft.FSharp.Quotations
 open Microsoft.FSharp.Quotations.Patterns
-open Microsoft.FSharp.Reflection
 open System.Threading
 open FSharp.Quotations.Evaluator
 
 type Send<'msg> = 'msg -> unit
 
 type IView<'model, 'msg> =
-  abstract BindModel: 'model -> Expr<unit>
-  abstract BindMsg: Send<'msg> -> unit
+  abstract BindModel : 'model -> Expr<unit>
+  abstract BindMsg : Send<'msg> -> unit
 
 type Cmd<'msg> = Cmd'<'msg> list
-and internal Cmd'<'msg> = Send<'msg> -> unit
+
+and private Cmd'<'msg> = Send<'msg> -> unit
+
+module private UIContext =
+  let mutable current : SynchronizationContext = null
+  let run (fn: unit -> unit) = current.Post((fun _ -> fn ()), null)
 
 [<RequireQualifiedAccess>]
 module Cmd =
   let internal exec send (cmd: Cmd<'msg>) = cmd |> List.iter (fun cmd -> cmd send)
   let internal isNone (cmd: Cmd<'msg>) = List.isEmpty cmd
+  let private startAsync = Async.Start
 
-  let none: Cmd<'msg> = []
-  let map (f: 'a -> 'msg) (cmd: Cmd<'a>) : Cmd<'msg> = cmd |> List.map (fun g -> (fun send -> f >> send) >> g)
+  let none : Cmd<'msg> = []
+
+  let map (f: 'a -> 'msg) (cmd: Cmd<'a>) : Cmd<'msg> =
+    cmd |> List.map (fun g -> (fun send -> f >> send) >> g)
+
   let batch (cmds: #seq<Cmd<'msg>>) : Cmd<'msg> = cmds |> List.concat
 
-  let ofMsg (msg:'msg): Cmd<'msg> = [fun send -> send msg]
+  let ofMsg (msg: 'msg) : Cmd<'msg> = [ fun send -> send msg ]
 
   module OfFunc =
-    let either (func: unit -> 'a) (ofSuccess: 'a -> 'msg) (ofError: exn -> 'msg) =
+    let either (fn: unit -> 'a) (ofSuccess: 'a -> 'msg) (ofError: exn -> 'msg) =
       let msg =
-        try ofSuccess (func ())
+        try
+          ofSuccess (fn ())
         with x -> ofError x
       ofMsg msg
 
-    let perform (func: unit -> 'a) (ofSuccess: 'a -> 'msg) : Cmd<'msg> =
+    let perform (fn: unit -> 'a) (ofSuccess: 'a -> 'msg) : Cmd<'msg> =
       let cmd send =
-        try func () |> ofSuccess |> send
+        try
+          fn () |> ofSuccess |> send
         with _ -> ()
-      [cmd]
+      [ cmd ]
 
-    let attempt (func: unit -> _) (ofError: exn -> 'msg) : Cmd<'msg> =
+    let attempt (fn: unit -> _) (ofError: exn -> 'msg) : Cmd<'msg> =
       let cmd send =
-        try func () |> ignore
+        try
+          fn () |> ignore
         with x -> ofError x |> send
-      [cmd]
+      [ cmd ]
 
-    let eff (func: unit -> _) : Cmd<'msg> =
-      try func () |> ignore
+  module OfEff =
+    type RunOnUIThread = (unit -> unit) -> unit
+
+    let run (fn: RunOnUIThread -> unit) =
+      try
+        fn UIContext.run |> ignore
       with _ -> ()
       none
 
-  module OfAsync =
-    let either' (computation: Async<'a>) (ofSuccess: 'a -> 'msg) (ofError: exn -> 'msg) (cTokenSrc: CancellationTokenSource) : Cmd<'msg> =
+    let ui (fn: unit -> unit) =
+      try
+        UIContext.run fn
+      with _ -> ()
+      none
+
+    let just (fn: unit -> unit) =
+      try
+        fn () |> ignore
+      with _ -> ()
+      none
+
+  module OfAsync' =
+    let either
+      (start: Async<unit> -> unit)
+      (computation: Async<'a>)
+      (ofSuccess: 'a -> 'msg)
+      (ofError: exn -> 'msg)
+      : Cmd<'msg>
+      =
       let cmd send =
-        let asyncCmd = async {
+        async {
           let! token = Async.CancellationToken
           if token.IsCancellationRequested then return ()
           let! choice = Async.Catch computation
           if token.IsCancellationRequested then return ()
-          let msg = match choice with
-                    | Choice1Of2 a -> ofSuccess a
-                    | Choice2Of2 e -> ofError e
+          let msg =
+            match choice with
+            | Choice1Of2 a -> ofSuccess a
+            | Choice2Of2 e -> ofError e
           send msg
         }
-        match isNull cTokenSrc with
-        | true -> Async.Start (asyncCmd)
-        | false -> Async.Start (asyncCmd, cTokenSrc.Token)
-      [cmd]
+      [ cmd >> start ]
 
-    let either (computation: Async<'a>) (ofSuccess: 'a -> 'msg) (ofError: exn -> 'msg) =
-      either' computation ofSuccess ofError null
-
-    let perform' (computation: Async<'a>) (ofSuccess: 'a -> 'msg) (cTokenSrc: CancellationTokenSource) : Cmd<'msg> =
+    let perform
+      (start: Async<unit> -> unit)
+      (computation: Async<'a>)
+      (ofSuccess: 'a -> 'msg)
+      : Cmd<'msg>
+      =
       let cmd send =
-        let async = async {
+        async {
           let! choice = Async.Catch computation
           match choice with
           | Choice1Of2 a -> send (ofSuccess a)
           | Choice2Of2 _ -> ()
         }
-        match isNull cTokenSrc with
-        | true -> Async.Start (async)
-        | false -> Async.Start (async, cTokenSrc.Token)
-      [cmd]
+      [ cmd >> start ]
 
-    let perform (computation: Async<'a>) (ofSuccess: 'a -> 'msg) =
-      perform' computation ofSuccess null
-
-    let attempt' (computation: Async<'a>) (ofError: exn -> 'msg) (cTokenSrc: CancellationTokenSource) : Cmd<'msg> =
+    let attempt
+      (start: Async<unit> -> unit)
+      (computation: Async<'a>)
+      (ofError: exn -> 'msg)
+      : Cmd<'msg>
+      =
       let cmd send =
-        let async = async {
+        async {
           let! choice = Async.Catch computation
           match choice with
           | Choice1Of2 _ -> ()
           | Choice2Of2 e -> send (ofError e)
         }
-        match isNull cTokenSrc with
-        | true -> Async.Start (async)
-        | false -> Async.Start (async, cTokenSrc.Token)
-      [cmd]
+      [ cmd >> start ]
+
+  module OfAsync =
+    let either (computation: Async<'a>) (ofSuccess: 'a -> 'msg) (ofError: exn -> 'msg) =
+      OfAsync'.either startAsync computation ofSuccess ofError
+
+    let perform (computation: Async<'a>) (ofSuccess: 'a -> 'msg) =
+      OfAsync'.perform startAsync computation ofSuccess
 
     let attempt (computation: Async<'a>) (ofError: exn -> 'msg) =
-      attempt' computation ofError null
+      OfAsync'.attempt startAsync computation ofError
+
+  module OfTask' =
+    let either
+      (start: Async<unit> -> unit)
+      (task: Tasks.Task<'a>)
+      (ofSuccess: 'a -> 'msg)
+      (ofError: exn -> 'msg)
+      =
+      OfAsync'.either start (Async.AwaitTask task) ofSuccess ofError
+
+    let perform (start: Async<unit> -> unit) (task: Tasks.Task<'a>) (ofSuccess: 'a -> 'msg) =
+      OfAsync'.perform start (Async.AwaitTask task) ofSuccess
+
+    let attempt (start: Async<unit> -> unit) (task: Tasks.Task<'a>) (ofError: exn -> 'msg) =
+      OfAsync'.attempt start (Async.AwaitTask task) ofError
 
   module OfTask =
-    let either' (task: Tasks.Task<'a>) (ofSuccess: 'a -> 'msg) (ofError: exn -> 'msg) (cTokenSrc: CancellationTokenSource) =
-      OfAsync.either' (Async.AwaitTask task) ofSuccess ofError cTokenSrc
-
     let either (task: Tasks.Task<'a>) (ofSuccess: 'a -> 'msg) (ofError: exn -> 'msg) =
-      OfAsync.either' (Async.AwaitTask task) ofSuccess ofError null
-
-    let perform' (task: Tasks.Task<'a>) (ofSuccess: 'a -> 'msg) (cTokenSrc: CancellationTokenSource) =
-      OfAsync.perform' (Async.AwaitTask task) ofSuccess cTokenSrc
+      OfAsync'.either startAsync (Async.AwaitTask task) ofSuccess ofError
 
     let perform (task: Tasks.Task<'a>) (ofSuccess: 'a -> 'msg) =
-      OfAsync.perform' (Async.AwaitTask task) ofSuccess null
-
-    let attempt' (task: Tasks.Task<'a>) (ofError: exn -> 'msg) (cTokenSrc: CancellationTokenSource) =
-      OfAsync.attempt' (Async.AwaitTask task) ofError cTokenSrc
+      OfAsync'.perform startAsync (Async.AwaitTask task) ofSuccess
 
     let attempt (task: Tasks.Task<'a>) (ofError: exn -> 'msg) =
-      OfAsync.attempt' (Async.AwaitTask task) ofError null
+      OfAsync'.attempt startAsync (Async.AwaitTask task) ofError
 
-type private ModelEventHandler<'model> (uiContext: SynchronizationContext) =
+type private ModelEventHandler<'model>() =
   let rec splitExpr =
     function
-    | Sequential(h, t) -> h :: splitExpr t
+    | Sequential (h, t) -> h :: splitExpr t
     | t -> [ t ]
 
-  let rec exprContainsFields fields expr =
-    let thatExpr = exprContainsFields fields
+  let rec exprContainsProps props expr =
+    let thatExpr = exprContainsProps props
     match expr with
-    | Application(e1, e2) -> thatExpr e1 || thatExpr e2
-    | Call(eOpt, _methodInfo, eList) ->
-      (eOpt |> Option.map thatExpr |> Option.defaultValue false) || (eList |> List.exists thatExpr)
-    | Coerce(e, _) -> thatExpr e
-    | FieldGet(Some(e), _) -> thatExpr e
-    | FieldSet(Some(e), _, e2) -> thatExpr e || thatExpr e2
-    | ForIntegerRangeLoop(_, e, e2, e3) -> thatExpr e || thatExpr e2 || thatExpr e3
-    | IfThenElse(e, e2, e3) -> thatExpr e || thatExpr e2 || thatExpr e3
-    | Lambda(_, e) -> thatExpr e
-    | Let(_, e1, e2) -> thatExpr e1 || thatExpr e2
-    | LetRecursive(el, e2) -> thatExpr e2 || el |> List.exists (fun (_, e) -> thatExpr e)
-    | NewArray(_, el) -> el |> List.exists thatExpr
-    | NewDelegate(_, _, e) -> thatExpr e
-    | NewObject(_, el) -> el |> List.exists thatExpr
-    | NewRecord(_, el) -> el |> List.exists thatExpr
-    | NewTuple(el) -> el |> List.exists thatExpr
-    | NewUnionCase(_, el) -> el |> List.exists thatExpr
-    | PropertySet(_, _, _, e) -> thatExpr e
-    | PropertyGet(Some(Value(o, _)), propInfo, []) when (o :? 'model) -> Set.contains propInfo.Name fields
-    | TryFinally(e, e2) -> thatExpr e || thatExpr e2
-    | TryWith(e, _, e2, _, e3) -> thatExpr e || thatExpr e2 || thatExpr e3
-    | TupleGet(e, _) -> thatExpr e
-    | TypeTest(e, _) -> thatExpr e
-    | UnionCaseTest(e, _) -> thatExpr e
-    | VarSet(_, e) -> thatExpr e
-    | WhileLoop(e, e2) -> thatExpr e || thatExpr e2
+    | Application (e1, e2) -> thatExpr e1 || thatExpr e2
+    | Call (eOpt, _methodInfo, eList) ->
+      (eOpt |> Option.map thatExpr |> Option.defaultValue false)
+      || (eList |> List.exists thatExpr)
+    | Coerce (e, _) -> thatExpr e
+    | FieldGet (Some (e), _) -> thatExpr e
+    | FieldSet (Some (e), _, e2) -> thatExpr e || thatExpr e2
+    | ForIntegerRangeLoop (_, e, e2, e3) -> thatExpr e || thatExpr e2 || thatExpr e3
+    | IfThenElse (e, e2, e3) -> thatExpr e || thatExpr e2 || thatExpr e3
+    | Lambda (_, e) -> thatExpr e
+    | Let (_, e1, e2) -> thatExpr e1 || thatExpr e2
+    | LetRecursive (el, e2) -> thatExpr e2 || el |> List.exists (fun (_, e) -> thatExpr e)
+    | NewArray (_, el) -> el |> List.exists thatExpr
+    | NewDelegate (_, _, e) -> thatExpr e
+    | NewObject (_, el) -> el |> List.exists thatExpr
+    | NewRecord (_, el) -> el |> List.exists thatExpr
+    | NewTuple (el) -> el |> List.exists thatExpr
+    | NewUnionCase (_, el) -> el |> List.exists thatExpr
+    | PropertySet (_, _, _, e) -> thatExpr e
+    | PropertyGet (Some (Value (o, _)), propInfo, []) when (o :? 'model) ->
+      Set.contains propInfo.Name props
+    | TryFinally (e, e2) -> thatExpr e || thatExpr e2
+    | TryWith (e, _, e2, _, e3) -> thatExpr e || thatExpr e2 || thatExpr e3
+    | TupleGet (e, _) -> thatExpr e
+    | TypeTest (e, _) -> thatExpr e
+    | UnionCaseTest (e, _) -> thatExpr e
+    | VarSet (_, e) -> thatExpr e
+    | WhileLoop (e, e2) -> thatExpr e || thatExpr e2
     | _ -> false
 
   let event =
     let evt = Event<Set<string> * Expr>() // keys * expr
-    evt.Publish.Add(fun (changedFields, expr) ->
-     expr
-     |> splitExpr
-     |> List.filter (exprContainsFields changedFields)
-     |> List.iter (fun e ->
-      // ensure perform UI updates on UI thread 
-      uiContext.Post ((fun _ -> QuotationEvaluator.EvaluateUntyped e |> ignore), null)))
+    evt.Publish.Add(fun (changedProps, expr) ->
+      expr
+      |> splitExpr
+      |> List.filter (exprContainsProps changedProps)
+      |> List.iter (fun e ->
+        UIContext.run (fun () -> QuotationEvaluator.EvaluateUntyped e |> ignore)
+      )
+    )
     evt
 
-  member __.NotifyChange fields expr = event.Trigger(fields, expr)
+  member __.NotifyChange props expr = event.Trigger(props, expr)
 
 [<RequireQualifiedAccess>]
 module Mu =
@@ -179,33 +224,44 @@ module Mu =
       Update: 'model -> 'msg -> 'model * Cmd<'msg>
       View: IView<'model, 'msg> }
 
-  let private diff fields m1 m2 expr callback =
-    let diffFields =
-      fields
-      |> Seq.fold (fun acc (field: System.Reflection.PropertyInfo) ->
-        let v1, v2 = field.GetValue m1, field.GetValue m2
-        if v1 <> v2 then Set.add field.Name acc else acc) Set.empty
-    if not (Set.isEmpty diffFields) then callback diffFields expr
+  let private diff props m1 m2 expr callback =
+    let diffProps =
+      props
+      |> Seq.fold
+        (fun acc (prop: System.Reflection.PropertyInfo) ->
+          let v1, v2 = prop.GetValue m1, prop.GetValue m2
+          if v1 <> v2 then Set.add prop.Name acc else acc
+        )
+        Set.empty
+    if not (Set.isEmpty diffProps) then callback diffProps expr
 
   // should always run in UI thread
   let run' (t: T<'model, 'msg>) =
     let { T.Init = init; Update = update; View = view } = t
-    let uiSyncContext =
+    if isNull UIContext.current then
       let ctx = SynchronizationContext.Current
       if isNull ctx then
-        failwith "Can't get UI SynchronizationContext, make sure you run Mu afer UI application initialized"
-      ctx
+        failwith
+          "Can't get UI SynchronizationContext, make sure you run Mu afer UI application initialized"
+      UIContext.current <- ctx
 
     let initModel, initCmd = init ()
     let model = ref initModel
-    let modelEventHandler = new ModelEventHandler<'model> (uiSyncContext)
-    let msgEventHandler = Event<'msg> ()
+    let modelEventHandler = new ModelEventHandler<'model>()
+    let msgEventHandler = Event<'msg>()
     let sendMsg msg = msgEventHandler.Trigger msg
-    let fields = FSharpType.GetRecordFields((!model).GetType())
+    let properties =
+      try
+        (!model).GetType().GetProperties()
+      with _ -> Array.empty
     msgEventHandler.Publish.Add(fun msg ->
       let newModel, cmd = update !model msg
       if !model <> newModel then
-        diff fields !model newModel (view.BindModel newModel) modelEventHandler.NotifyChange
+        let newBinding = view.BindModel newModel
+        match Array.isEmpty properties with
+        | true ->
+          UIContext.current.Post((fun _ -> QuotationEvaluator.Evaluate newBinding), null)
+        | false -> diff properties !model newModel newBinding modelEventHandler.NotifyChange
         model := newModel
       Cmd.exec sendMsg cmd
     )
@@ -213,5 +269,4 @@ module Mu =
     view.BindMsg sendMsg
     Cmd.exec sendMsg initCmd
 
-  let run init update view =
-    run' { Init = init; Update = update; View = view }
+  let run init update view = run' { Init = init; Update = update; View = view }
